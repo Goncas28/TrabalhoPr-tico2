@@ -234,6 +234,10 @@ select {
     background-color: var(--input-focus);
 }
 
+#cancelAddrEditBtn {
+    margin-top: 1rem;
+}
+
 /* Success Message */
 .success-message {
     text-align: center;
