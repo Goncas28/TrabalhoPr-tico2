@@ -297,7 +297,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 destinoInfo: `${address.rua}, ${address.codigoPostal} ${address.localidade}`,
                 prazo: orderDeadline.value,
                 dataCriacao: new Date().toISOString(),
-                estado: 'Pendente' // Podemos expandir mais tarde
+                estado: 'Pendente',
+                historicoEstado: [
+                    { estado: 'Pendente', timestamp: new Date().toISOString() }
+                ]
             };
 
             const orders = getOrders();
@@ -335,6 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         orders.forEach(order => {
             const prazoDate = new Date(order.prazo).toLocaleDateString('pt-PT');
+            const statusClass = order.estado.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
             
             const card = document.createElement('div');
             card.className = 'order-card';
@@ -344,12 +348,95 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h3>${order.produto} (${order.peso} Kg)</h3>
                     <p><strong>Cliente:</strong> ${order.clientName}</p>
                     <p><strong>Destino:</strong> ${order.destinoInfo}</p>
+                    <div style="margin-top: 1rem;">
+                        <span class="badge-status status-${statusClass}">${order.estado}</span>
+                    </div>
                 </div>
-                <div class="order-status" style="text-align:right;">
-                    <p><strong>Prazo:</strong> <br>${prazoDate}</p>
+                <div class="order-actions" style="text-align:right;">
+                    <p style="margin-bottom: 1rem;"><strong>Prazo:</strong> <br>${prazoDate}</p>
+                    <button class="btn-manage btn-track" data-id="${order.id}">Rastrear</button>
                 </div>
             `;
             ordersContainer.appendChild(card);
         });
+
+        document.querySelectorAll('.btn-track').forEach(btn => {
+            btn.addEventListener('click', (e) => openTrackingModal(e.target.dataset.id));
+        });
     }
+
+    // ---- 5. RASTREAMENTO DE ENCOMENDA ----
+    const trackingModal = document.getElementById('trackingModal');
+    let currentOrderId = null;
+
+    function openTrackingModal(orderId) {
+        currentOrderId = orderId;
+        const orders = getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+
+        document.getElementById('trackingOrderRef').textContent = order.id;
+        document.getElementById('trackingProductName').textContent = order.produto;
+        document.getElementById('updateStatusSelect').value = order.estado;
+
+        renderTrackingTimeline(order);
+        trackingModal.classList.remove('hidden');
+    }
+
+    document.getElementById('closeTrackingModalBtn').addEventListener('click', () => {
+        trackingModal.classList.add('hidden');
+    });
+
+    function renderTrackingTimeline(order) {
+        const timeline = document.getElementById('trackingTimeline');
+        timeline.innerHTML = '';
+
+        const historico = order.historicoEstado || [];
+        // Ordenar por timestamp mais recente no topo
+        const sortedHistory = [...historico].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        sortedHistory.forEach(h => {
+            const date = new Date(h.timestamp);
+            const dateStr = date.toLocaleDateString('pt-PT');
+            const timeStr = date.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+
+            const item = document.createElement('div');
+            item.className = 'timeline-item';
+            item.innerHTML = `
+                <div class="timeline-content">
+                    <span class="time">${dateStr} às ${timeStr}</span>
+                    <span class="status-text">${h.estado}</span>
+                </div>
+            `;
+            timeline.appendChild(item);
+        });
+    }
+
+    document.getElementById('updateStatusBtn').addEventListener('click', () => {
+        const newStatus = document.getElementById('updateStatusSelect').value;
+        if (!currentOrderId) return;
+
+        const orders = getOrders();
+        const oIndex = orders.findIndex(o => o.id === currentOrderId);
+        if (oIndex === -1) return;
+
+        // Só adiciona se o estado for diferente do atual
+        if (orders[oIndex].estado === newStatus) {
+            alert('A encomenda já se encontra nesse estado.');
+            return;
+        }
+
+        orders[oIndex].estado = newStatus;
+        if (!orders[oIndex].historicoEstado) orders[oIndex].historicoEstado = [];
+        
+        orders[oIndex].historicoEstado.push({
+            estado: newStatus,
+            timestamp: new Date().toISOString()
+        });
+
+        saveOrders(orders);
+        renderTrackingTimeline(orders[oIndex]);
+        renderOrdersList();
+        alert('Estado atualizado com sucesso!');
+    });
 });
