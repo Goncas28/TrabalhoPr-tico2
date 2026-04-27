@@ -1,4 +1,76 @@
 document.addEventListener('DOMContentLoaded', () => {
+        // ---- Filtros de Encomendas ----
+        const filterEstado = document.getElementById('filterEstado');
+        const filterDataInicio = document.getElementById('filterDataInicio');
+        const filterDataFim = document.getElementById('filterDataFim');
+        const btnExportPDF = document.getElementById('btnExportPDF');
+        const btnExportExcel = document.getElementById('btnExportExcel');
+
+        function getFilteredOrders() {
+            let orders = getOrders();
+            // Filtro por estado
+            if (filterEstado && filterEstado.value) {
+                orders = orders.filter(o => o.estado === filterEstado.value);
+            }
+            // Filtro por período
+            if (filterDataInicio && filterDataInicio.value) {
+                orders = orders.filter(o => new Date(o.dataCriacao) >= new Date(filterDataInicio.value));
+            }
+            if (filterDataFim && filterDataFim.value) {
+                // Considera o fim do dia
+                const fim = new Date(filterDataFim.value);
+                fim.setHours(23,59,59,999);
+                orders = orders.filter(o => new Date(o.dataCriacao) <= fim);
+            }
+            return orders;
+        }
+
+        if (filterEstado) filterEstado.addEventListener('change', renderOrdersList);
+        if (filterDataInicio) filterDataInicio.addEventListener('change', renderOrdersList);
+        if (filterDataFim) filterDataFim.addEventListener('change', renderOrdersList);
+
+        if (btnExportPDF) btnExportPDF.addEventListener('click', exportOrdersPDF);
+        if (btnExportExcel) btnExportExcel.addEventListener('click', exportOrdersExcel);
+
+        // Funções de exportação (esqueleto)
+        function exportOrdersPDF() {
+            // Exportação simples: abre uma nova janela com HTML formatado para impressão em PDF
+            const orders = getFilteredOrders();
+            if (orders.length === 0) { alert('Nenhuma encomenda para exportar.'); return; }
+            let html = `<h2>Lista de Encomendas</h2><table border='1' cellpadding='5' cellspacing='0'><thead><tr><th>Referência</th><th>Cliente</th><th>Produto</th><th>Peso (Kg)</th><th>Destino</th><th>Prazo</th><th>Estado</th><th>Data Criação</th></tr></thead><tbody>`;
+            orders.forEach(o => {
+                html += `<tr><td>${o.id}</td><td>${o.clientName}</td><td>${o.produto}</td><td>${o.peso}</td><td>${o.destinoInfo}</td><td>${new Date(o.prazo).toLocaleDateString('pt-PT')}</td><td>${o.estado}</td><td>${new Date(o.dataCriacao).toLocaleDateString('pt-PT')}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            const win = window.open('', '', 'width=900,height=700');
+            win.document.write(`<html><head><title>Exportação PDF</title></head><body>${html}</body></html>`);
+            win.document.close();
+            win.print();
+        }
+        function exportOrdersExcel() {
+            // Exportação simples para CSV
+            const orders = getFilteredOrders();
+            if (orders.length === 0) { alert('Nenhuma encomenda para exportar.'); return; }
+            let csv = 'Referência,Cliente,Produto,Peso (Kg),Destino,Prazo,Estado,Data Criação\n';
+            orders.forEach(o => {
+                csv += `"${o.id}","${o.clientName}","${o.produto}","${o.peso}","${o.destinoInfo}","${new Date(o.prazo).toLocaleDateString('pt-PT')}","${o.estado}","${new Date(o.dataCriacao).toLocaleDateString('pt-PT')}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'encomendas.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    // ---- Global Data ----
+    function getClients() { return JSON.parse(localStorage.getItem('clients') || '[]'); }
+    function saveClients(clients) { localStorage.setItem('clients', JSON.stringify(clients)); }
+    function getOrders() { return JSON.parse(localStorage.getItem('orders') || '[]'); }
+    function saveOrders(orders) { localStorage.setItem('orders', JSON.stringify(orders)); }
+
     // ---- DOM Elements ----
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -109,7 +181,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ---- MODAL LOGIC ----
+    // Modal de histórico de encomendas
+    function openOrderHistoryModal(clientId) {
+        const client = getClients().find(c => c.id === clientId);
+        if (!client) return;
+        const orders = getOrders().filter(o => o.clientId === clientId);
+        let html = `<h2>Histórico de Encomendas de ${client.nome}</h2>`;
+        if (orders.length === 0) {
+            html += '<div class="no-data">Nenhuma encomenda encontrada para este cliente.</div>';
+        } else {
+            html += `<table border='1' cellpadding='5' cellspacing='0' style='width:100%;margin-top:1rem;'><thead><tr><th>Referência</th><th>Produto</th><th>Peso</th><th>Destino</th><th>Prazo</th><th>Estado</th><th>Data Criação</th></tr></thead><tbody>`;
+            orders.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
+            orders.forEach(o => {
+                html += `<tr><td>${o.id}</td><td>${o.produto}</td><td>${o.peso}</td><td>${o.destinoInfo}</td><td>${new Date(o.prazo).toLocaleDateString('pt-PT')}</td><td>${o.estado}</td><td>${new Date(o.dataCriacao).toLocaleDateString('pt-PT')}</td></tr>`;
+            });
+            html += '</tbody></table>';
+        }
+        showModal(html);
+    }
+
+    // Função utilitária para mostrar modal simples
+    function showModal(contentHtml) {
+        let modal = document.getElementById('simpleModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'simpleModal';
+            modal.className = 'modal';
+            modal.innerHTML = `<div class="modal-content"><button id="closeSimpleModalBtn" class="close-btn" style="float:right;">&times;</button><div id="simpleModalBody"></div></div>`;
+            document.body.appendChild(modal);
+        }
+        document.getElementById('simpleModalBody').innerHTML = contentHtml;
+        modal.classList.remove('hidden');
+        document.getElementById('closeSimpleModalBtn').onclick = () => modal.classList.add('hidden');
+    }
+
+    // [Omitted full modal logic here but included the essential functions below]
+    // Modal Address functions 
+    const addressModal = document.getElementById('addressModal');
+    const addressForm = document.getElementById('addressForm');
+    
     function openAddressModal(clientId) {
         currentClientId = clientId;
         const client = getClients().find(c => c.id === clientId);
@@ -196,14 +306,311 @@ document.addEventListener('DOMContentLoaded', () => {
     
     window.setMainAddress = function(addrId) {
         const clients = getClients();
-        const clientIndex = clients.findIndex(c => c.id === currentClientId);
-        if (clientIndex === -1) return;
+        const cIndex = clients.findIndex(c => c.id === currentClientId);
+        clients[cIndex].enderecos.forEach(a => a.isMain = (a.id === addrId));
+        saveClients(clients);
+        renderAddresses(clients[cIndex]);
+    }
 
-        clients[clientIndex].enderecos.forEach(addr => {
-            addr.isMain = (addr.id === addrId);
+    // ---- 3. NOVA ENCOMENDA ----
+    const orderForm = document.getElementById('orderForm');
+    const orderClient = document.getElementById('orderClient');
+    const orderDest = document.getElementById('orderDest');
+    const orderProduct = document.getElementById('orderProduct');
+    const orderWeight = document.getElementById('orderWeight');
+    const orderDeadline = document.getElementById('orderDeadline');
+    const orderSuccess = document.getElementById('orderSuccessMessage');
+
+    // Popular Dropdown de Clientes
+    function populateOrderClientSelect() {
+        const clients = getClients();
+        orderClient.innerHTML = '<option value="" disabled selected>Selecione um cliente...</option>';
+        orderDest.innerHTML = '<option value="" disabled selected>Primeiro selecione um cliente...</option>';
+        orderDest.disabled = true;
+
+        if (clients.length === 0) {
+            orderClient.innerHTML = '<option value="" disabled selected>Nenhum cliente disponível. Registe um primeiro.</option>';
+            return;
+        }
+
+        clients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.nome} (${c.nif})`;
+            orderClient.appendChild(opt);
+        });
+    }
+
+    // Atualizar Destinos ao Selecionar Cliente
+    orderClient.addEventListener('change', () => {
+        orderClient.parentElement.classList.remove('invalid');
+        const clientId = orderClient.value;
+        const client = getClients().find(c => c.id === clientId);
+        
+        orderDest.innerHTML = '';
+        
+        if (!client || !client.enderecos || client.enderecos.length === 0) {
+            orderDest.innerHTML = '<option value="" disabled selected>Cliente sem endereços registados!</option>';
+            orderDest.disabled = true;
+            return;
+        }
+
+        orderDest.disabled = false;
+        client.enderecos.forEach(addr => {
+            const opt = document.createElement('option');
+            opt.value = addr.id;
+            // Destaca o principal
+            const isMainTxt = addr.isMain ? ' (Principal)' : '';
+            opt.textContent = `${addr.rua}, ${addr.codigoPostal} ${addr.localidade}${isMainTxt}`;
+            if (addr.isMain) opt.selected = true; // Auto-selecionar o principal
+            orderDest.appendChild(opt);
+        });
+        orderDest.parentElement.classList.remove('invalid');
+    });
+
+    [orderProduct, orderWeight, orderDeadline, orderDest].forEach(input => {
+        input.addEventListener('input', () => input.parentElement.classList.remove('invalid'));
+        input.addEventListener('change', () => input.parentElement.classList.remove('invalid'));
+    });
+
+    orderForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        let isValid = true;
+
+        if (!orderClient.value) { orderClient.parentElement.classList.add('invalid'); isValid = false; }
+        if (!orderProduct.value.trim()) { orderProduct.parentElement.classList.add('invalid'); isValid = false; }
+        if (!orderWeight.value || orderWeight.value <= 0) { orderWeight.parentElement.classList.add('invalid'); isValid = false; }
+        if (!orderDeadline.value) { orderDeadline.parentElement.classList.add('invalid'); isValid = false; }
+        if (!orderDest.value) { orderDest.parentElement.classList.add('invalid'); isValid = false; }
+
+        if (isValid) {
+            const client = getClients().find(c => c.id === orderClient.value);
+            const address = client.enderecos.find(a => a.id === orderDest.value);
+
+            // Gerar Referência Única
+            const dateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
+            const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const orderRef = `ENC-${dateStr}-${randStr}`;
+
+            const orderData = {
+                id: orderRef,
+                clientId: client.id,
+                clientName: client.nome,
+                produto: orderProduct.value.trim(),
+                peso: parseFloat(orderWeight.value),
+                destinoInfo: `${address.rua}, ${address.codigoPostal} ${address.localidade}`,
+                prazo: orderDeadline.value,
+                dataCriacao: new Date().toISOString(),
+                estado: 'Pendente',
+                historicoEstado: [
+                    { estado: 'Pendente', timestamp: new Date().toISOString() }
+                ]
+            };
+
+            const orders = getOrders();
+            orders.push(orderData);
+            saveOrders(orders);
+
+            document.getElementById('generatedOrderRef').textContent = orderRef;
+            orderForm.style.display = 'none';
+            orderSuccess.classList.remove('hidden');
+        }
+    });
+
+    document.getElementById('newOrderBtn').addEventListener('click', () => {
+        orderForm.reset();
+        orderDest.innerHTML = '<option value="" disabled selected>Primeiro selecione um cliente...</option>';
+        orderDest.disabled = true;
+        orderSuccess.classList.add('hidden');
+        orderForm.style.display = 'block';
+    });
+
+    // ---- 4. LISTA DE ENCOMENDAS ----
+    const ordersContainer = document.getElementById('ordersContainer');
+
+    function renderOrdersList() {
+        const orders = getFilteredOrders();
+        ordersContainer.innerHTML = '';
+        if (orders.length === 0) {
+            ordersContainer.innerHTML = '<div class="no-data">Nenhuma encomenda encontrada com os filtros selecionados.</div>';
+            return;
+        }
+        // Ordenar por data de criação mais recente
+        orders.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
+        orders.forEach(order => {
+            const prazoDate = new Date(order.prazo).toLocaleDateString('pt-PT');
+            const statusClass = order.estado.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
+            
+            // Botões extras para estado Pendente
+            let actionBtns = '';
+            if (order.estado === 'Pendente') {
+                actionBtns = `
+                    <button class="btn-manage btn-edit" data-id="${order.id}">Editar</button>
+                    <button class="btn-manage btn-cancel" data-id="${order.id}">Cancelar</button>
+                `;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'order-card';
+            card.innerHTML = `
+                <div class="order-info">
+                    <span class="order-ref">${order.id}</span>
+                    <h3>${order.produto} (${order.peso} Kg)</h3>
+                    <p><strong>Cliente:</strong> ${order.clientName}</p>
+                    <p><strong>Destino:</strong> ${order.destinoInfo}</p>
+                    <div style="margin-top: 1rem;">
+                        <span class="badge-status status-${statusClass}">${order.estado}</span>
+                    </div>
+                </div>
+                <div class="order-actions" style="text-align:right;">
+                    <p style="margin-bottom: 0.5rem;"><strong>Prazo:</strong> <br>${prazoDate}</p>
+                    <button class="btn-manage btn-track" data-id="${order.id}">Rastrear</button>
+                    ${actionBtns}
+                </div>
+            `;
+            ordersContainer.appendChild(card);
         });
 
-        saveClients(clients);
-        renderAddresses(clients[clientIndex]);
-    };
+        // Event Listeners para os novos botões
+        document.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => openEditOrderModal(e.target.dataset.id));
+        });
+        document.querySelectorAll('.btn-cancel').forEach(btn => {
+            btn.addEventListener('click', (e) => openCancelModal(e.target.dataset.id));
+        });
+        document.querySelectorAll('.btn-track').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const order = getOrders().find(o => o.id === e.target.dataset.id);
+                if (order) {
+                    let historyHtml = `<h3>Rastreio: ${order.id}</h3><div class="timeline">`;
+                    order.historicoEstado.forEach(h => {
+                        historyHtml += `<div class="timeline-item"><div class="timeline-content"><span class="time">${new Date(h.timestamp).toLocaleString('pt-PT')}</span><p class="status-text">${h.estado}</p>${h.motivo ? `<p style="font-size:0.8rem;color:var(--text-muted);">Motivo: ${h.motivo}</p>` : ''}</div></div>`;
+                    });
+                    historyHtml += '</div>';
+                    showModal(historyHtml);
+                }
+            });
+        });
+    }
+
+    // ---- LÓGICA DE CANCELAMENTO ----
+    const cancelModal = document.getElementById('cancelOrderModal');
+    const cancelForm = document.getElementById('cancelOrderForm');
+    
+    function openCancelModal(orderId) {
+        const order = getOrders().find(o => o.id === orderId);
+        if (!order) return;
+        document.getElementById('cancelOrderId').value = orderId;
+        document.getElementById('cancelOrderRef').textContent = orderId;
+        document.getElementById('cancelReason').value = '';
+        cancelModal.classList.remove('hidden');
+    }
+
+    document.getElementById('closeCancelModalBtn').addEventListener('click', () => cancelModal.classList.add('hidden'));
+
+    cancelForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const orderId = document.getElementById('cancelOrderId').value;
+        const reason = document.getElementById('cancelReason').value.trim();
+
+        if (!reason) {
+            alert('O motivo do cancelamento é obrigatório.');
+            return;
+        }
+
+        const orders = getOrders();
+        const oIndex = orders.findIndex(o => o.id === orderId);
+        if (oIndex === -1) return;
+
+        if (orders[oIndex].estado !== 'Pendente') {
+            alert('Apenas encomendas pendentes podem ser canceladas.');
+            return;
+        }
+
+        const timestamp = new Date().toISOString();
+        orders[oIndex].estado = 'Cancelada';
+        orders[oIndex].historicoEstado.push({
+            estado: 'Cancelada',
+            timestamp: timestamp,
+            motivo: reason
+        });
+
+        saveOrders(orders);
+        cancelModal.classList.add('hidden');
+        renderOrdersList();
+
+        // Simulação de Notificação Automática ao Cliente
+        setTimeout(() => {
+            alert(`[Notificação Automática] Enviada para o cliente ${orders[oIndex].clientName}:\n"A sua encomenda ${orderId} foi cancelada. Motivo: ${reason}"`);
+        }, 500);
+    });
+
+    // ---- LÓGICA DE EDIÇÃO ----
+    const editModal = document.getElementById('editOrderModal');
+    const editForm = document.getElementById('editOrderForm');
+
+    function openEditOrderModal(orderId) {
+        const order = getOrders().find(o => o.id === orderId);
+        if (!order) return;
+
+        document.getElementById('editOrderId').value = orderId;
+        document.getElementById('editOrderProduct').value = order.produto;
+        document.getElementById('editOrderWeight').value = order.peso;
+        document.getElementById('editOrderDeadline').value = order.prazo;
+
+        // Popular destinos do cliente da encomenda
+        const client = getClients().find(c => c.id === order.clientId);
+        const destSelect = document.getElementById('editOrderDest');
+        destSelect.innerHTML = '';
+        
+        if (client && client.enderecos) {
+            client.enderecos.forEach(addr => {
+                const opt = document.createElement('option');
+                const addrTxt = `${addr.rua}, ${addr.codigoPostal} ${addr.localidade}`;
+                opt.value = addrTxt;
+                opt.textContent = addrTxt;
+                if (addrTxt === order.destinoInfo) opt.selected = true;
+                destSelect.appendChild(opt);
+            });
+        }
+
+        editModal.classList.remove('hidden');
+    }
+
+    document.getElementById('closeEditModalBtn').addEventListener('click', () => editModal.classList.add('hidden'));
+
+    editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const orderId = document.getElementById('editOrderId').value;
+        const product = document.getElementById('editOrderProduct').value.trim();
+        const weight = document.getElementById('editOrderWeight').value;
+        const deadline = document.getElementById('editOrderDeadline').value;
+        const destino = document.getElementById('editOrderDest').value;
+
+        if (!product || !weight || !deadline || !destino) {
+            alert('Por favor, preencha todos os campos.');
+            return;
+        }
+
+        const orders = getOrders();
+        const oIndex = orders.findIndex(o => o.id === orderId);
+        if (oIndex === -1) return;
+
+        orders[oIndex].produto = product;
+        orders[oIndex].peso = parseFloat(weight);
+        orders[oIndex].prazo = deadline;
+        orders[oIndex].destinoInfo = destino;
+        
+        orders[oIndex].historicoEstado.push({
+            estado: 'Editada',
+            timestamp: new Date().toISOString(),
+            motivo: 'Correção de erros pelo operador'
+        });
+
+        saveOrders(orders);
+        editModal.classList.add('hidden');
+        renderOrdersList();
+        
+        alert('Encomenda atualizada com sucesso!');
+    });
 });
