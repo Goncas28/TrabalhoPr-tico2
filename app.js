@@ -1,10 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ---- Global Data ----
-    function getClients() { return JSON.parse(localStorage.getItem('clients') || '[]'); }
-    function saveClients(clients) { localStorage.setItem('clients', JSON.stringify(clients)); }
-    function getOrders() { return JSON.parse(localStorage.getItem('orders') || '[]'); }
-    function saveOrders(orders) { localStorage.setItem('orders', JSON.stringify(orders)); }
-
     // ---- DOM Elements ----
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -101,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="client-actions">
                     <button class="btn-manage" data-id="${client.id}">Gerir Endereços</button>
+                    <button class="btn-history" data-id="${client.id}">Histórico de Encomendas</button>
                 </div>
             `;
             clientsContainer.appendChild(card);
@@ -109,13 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-manage').forEach(btn => {
             btn.addEventListener('click', (e) => openAddressModal(e.target.dataset.id));
         });
+        document.querySelectorAll('.btn-history').forEach(btn => {
+            btn.addEventListener('click', (e) => openOrderHistoryModal(e.target.dataset.id));
+        });
     }
 
-    // [Omitted full modal logic here but included the essential functions below]
-    // Modal Address functions 
-    const addressModal = document.getElementById('addressModal');
-    const addressForm = document.getElementById('addressForm');
-    
+    // ---- MODAL LOGIC ----
     function openAddressModal(clientId) {
         currentClientId = clientId;
         const client = getClients().find(c => c.id === clientId);
@@ -202,154 +196,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     window.setMainAddress = function(addrId) {
         const clients = getClients();
-        const cIndex = clients.findIndex(c => c.id === currentClientId);
-        clients[cIndex].enderecos.forEach(a => a.isMain = (a.id === addrId));
+        const clientIndex = clients.findIndex(c => c.id === currentClientId);
+        if (clientIndex === -1) return;
+
+        clients[clientIndex].enderecos.forEach(addr => {
+            addr.isMain = (addr.id === addrId);
+        });
+
         saveClients(clients);
-        renderAddresses(clients[cIndex]);
-    }
-
-    // ---- 3. NOVA ENCOMENDA ----
-    const orderForm = document.getElementById('orderForm');
-    const orderClient = document.getElementById('orderClient');
-    const orderDest = document.getElementById('orderDest');
-    const orderProduct = document.getElementById('orderProduct');
-    const orderWeight = document.getElementById('orderWeight');
-    const orderDeadline = document.getElementById('orderDeadline');
-    const orderSuccess = document.getElementById('orderSuccessMessage');
-
-    // Popular Dropdown de Clientes
-    function populateOrderClientSelect() {
-        const clients = getClients();
-        orderClient.innerHTML = '<option value="" disabled selected>Selecione um cliente...</option>';
-        orderDest.innerHTML = '<option value="" disabled selected>Primeiro selecione um cliente...</option>';
-        orderDest.disabled = true;
-
-        if (clients.length === 0) {
-            orderClient.innerHTML = '<option value="" disabled selected>Nenhum cliente disponível. Registe um primeiro.</option>';
-            return;
-        }
-
-        clients.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            opt.textContent = `${c.nome} (${c.nif})`;
-            orderClient.appendChild(opt);
-        });
-    }
-
-    // Atualizar Destinos ao Selecionar Cliente
-    orderClient.addEventListener('change', () => {
-        orderClient.parentElement.classList.remove('invalid');
-        const clientId = orderClient.value;
-        const client = getClients().find(c => c.id === clientId);
-        
-        orderDest.innerHTML = '';
-        
-        if (!client || !client.enderecos || client.enderecos.length === 0) {
-            orderDest.innerHTML = '<option value="" disabled selected>Cliente sem endereços registados!</option>';
-            orderDest.disabled = true;
-            return;
-        }
-
-        orderDest.disabled = false;
-        client.enderecos.forEach(addr => {
-            const opt = document.createElement('option');
-            opt.value = addr.id;
-            // Destaca o principal
-            const isMainTxt = addr.isMain ? ' (Principal)' : '';
-            opt.textContent = `${addr.rua}, ${addr.codigoPostal} ${addr.localidade}${isMainTxt}`;
-            if (addr.isMain) opt.selected = true; // Auto-selecionar o principal
-            orderDest.appendChild(opt);
-        });
-        orderDest.parentElement.classList.remove('invalid');
-    });
-
-    [orderProduct, orderWeight, orderDeadline, orderDest].forEach(input => {
-        input.addEventListener('input', () => input.parentElement.classList.remove('invalid'));
-        input.addEventListener('change', () => input.parentElement.classList.remove('invalid'));
-    });
-
-    orderForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        let isValid = true;
-
-        if (!orderClient.value) { orderClient.parentElement.classList.add('invalid'); isValid = false; }
-        if (!orderProduct.value.trim()) { orderProduct.parentElement.classList.add('invalid'); isValid = false; }
-        if (!orderWeight.value || orderWeight.value <= 0) { orderWeight.parentElement.classList.add('invalid'); isValid = false; }
-        if (!orderDeadline.value) { orderDeadline.parentElement.classList.add('invalid'); isValid = false; }
-        if (!orderDest.value) { orderDest.parentElement.classList.add('invalid'); isValid = false; }
-
-        if (isValid) {
-            const client = getClients().find(c => c.id === orderClient.value);
-            const address = client.enderecos.find(a => a.id === orderDest.value);
-
-            // Gerar Referência Única
-            const dateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
-            const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-            const orderRef = `ENC-${dateStr}-${randStr}`;
-
-            const orderData = {
-                id: orderRef,
-                clientId: client.id,
-                clientName: client.nome,
-                produto: orderProduct.value.trim(),
-                peso: parseFloat(orderWeight.value),
-                destinoInfo: `${address.rua}, ${address.codigoPostal} ${address.localidade}`,
-                prazo: orderDeadline.value,
-                dataCriacao: new Date().toISOString(),
-                estado: 'Pendente' // Podemos expandir mais tarde
-            };
-
-            const orders = getOrders();
-            orders.push(orderData);
-            saveOrders(orders);
-
-            document.getElementById('generatedOrderRef').textContent = orderRef;
-            orderForm.style.display = 'none';
-            orderSuccess.classList.remove('hidden');
-        }
-    });
-
-    document.getElementById('newOrderBtn').addEventListener('click', () => {
-        orderForm.reset();
-        orderDest.innerHTML = '<option value="" disabled selected>Primeiro selecione um cliente...</option>';
-        orderDest.disabled = true;
-        orderSuccess.classList.add('hidden');
-        orderForm.style.display = 'block';
-    });
-
-    // ---- 4. LISTA DE ENCOMENDAS ----
-    const ordersContainer = document.getElementById('ordersContainer');
-
-    function renderOrdersList() {
-        const orders = getOrders();
-        ordersContainer.innerHTML = '';
-        
-        if (orders.length === 0) {
-            ordersContainer.innerHTML = '<div class="no-data">Nenhuma encomenda registada.</div>';
-            return;
-        }
-
-        // Ordenar por data de criação mais recente
-        orders.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
-
-        orders.forEach(order => {
-            const prazoDate = new Date(order.prazo).toLocaleDateString('pt-PT');
-            
-            const card = document.createElement('div');
-            card.className = 'order-card';
-            card.innerHTML = `
-                <div class="order-info">
-                    <span class="order-ref">${order.id}</span>
-                    <h3>${order.produto} (${order.peso} Kg)</h3>
-                    <p><strong>Cliente:</strong> ${order.clientName}</p>
-                    <p><strong>Destino:</strong> ${order.destinoInfo}</p>
-                </div>
-                <div class="order-status" style="text-align:right;">
-                    <p><strong>Prazo:</strong> <br>${prazoDate}</p>
-                </div>
-            `;
-            ordersContainer.appendChild(card);
-        });
-    }
+        renderAddresses(clients[clientIndex]);
+    };
 });
