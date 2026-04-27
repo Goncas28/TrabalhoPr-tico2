@@ -273,48 +273,10 @@
                         </div>
 
                         <div class="address-form-actions">
-                            <button type="button" id="cancelAddrEditBtn" class="secondary-btn hidden"
-                                style="margin-top: 1rem;">Cancelar</button>
+                            <button type="button" id="cancelAddrEditBtn" class="secondary-btn hidden" style="margin-top: 1rem;">Cancelar</button>
                             <button type="submit" class="submit-btn">Guardar Endereço</button>
                         </div>
                     </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de Rastreamento (Oculto) -->
-    <div id="trackingModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Rastreamento da Encomenda</h2>
-                <button id="closeTrackingModalBtn" class="close-btn">&times;</button>
-            </div>
-
-            <div class="modal-body">
-                <div class="client-info-banner">
-                    Encomenda: <strong id="trackingOrderRef">REF</strong><br>
-                    Produto: <span id="trackingProductName">Produto</span>
-                </div>
-
-                <div class="tracking-section">
-                    <h3>Histórico de Estados</h3>
-                    <div id="trackingTimeline" class="timeline">
-                        <!-- Timeline via JS -->
-                    </div>
-                </div>
-
-                <div class="form-section update-status-section">
-                    <h3>Atualizar Estado (Demo)</h3>
-                    <div class="input-group">
-                        <select id="updateStatusSelect">
-                            <option value="Pendente">Pendente</option>
-                            <option value="Em distribuição">Em distribuição</option>
-                            <option value="Entregue">Entregue</option>
-                            <option value="Cancelada">Cancelada</option>
-                        </select>
-                    </div>
-                    <button type="button" id="updateStatusBtn" class="submit-btn">Atualizar Estado</button>
                 </div>
             </div>
         </div>

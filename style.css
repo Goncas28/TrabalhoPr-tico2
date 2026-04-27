@@ -229,10 +229,7 @@ select {
     cursor: pointer;
     transition: all 0.2s ease;
 }
-
-.secondary-btn:hover {
-    background-color: var(--input-focus);
-}
+.secondary-btn:hover { background-color: var(--input-focus); }
 
 /* Success Message */
 .success-message {
