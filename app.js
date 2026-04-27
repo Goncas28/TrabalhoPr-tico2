@@ -70,6 +70,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveClients(clients) { localStorage.setItem('clients', JSON.stringify(clients)); }
     function getOrders() { return JSON.parse(localStorage.getItem('orders') || '[]'); }
     function saveOrders(orders) { localStorage.setItem('orders', JSON.stringify(orders)); }
+    function getCouriers() { 
+        const defaultCouriers = [
+            { id: 'EST-001', nome: 'João Silva', zona: 'Lisboa', disponivel: true },
+            { id: 'EST-002', nome: 'Maria Santos', zona: 'Lisboa', disponivel: true },
+            { id: 'EST-003', nome: 'Pedro Lima', zona: 'Porto', disponivel: true },
+            { id: 'EST-004', nome: 'Ana Costa', zona: 'Lisboa', disponivel: false },
+            { id: 'EST-005', nome: 'Carlos Sousa', zona: 'Setúbal', disponivel: true }
+        ];
+        const stored = localStorage.getItem('couriers');
+        if (!stored) {
+            localStorage.setItem('couriers', JSON.stringify(defaultCouriers));
+            return defaultCouriers;
+        }
+        return JSON.parse(stored);
+    }
+    function saveCouriers(couriers) { localStorage.setItem('couriers', JSON.stringify(couriers)); }
 
     // ---- DOM Elements ----
     const tabBtns = document.querySelectorAll('.tab-btn');
@@ -88,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.dataset.target === 'tab-list') renderClientsList();
             if (btn.dataset.target === 'tab-order') populateOrderClientSelect();
             if (btn.dataset.target === 'tab-orders-list') renderOrdersList();
+            if (btn.dataset.target === 'tab-couriers') renderCouriersList();
         });
     });
 
@@ -437,21 +454,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Ordenar por data de criação mais recente
         orders.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
+        
         orders.forEach(order => {
             const prazoDate = new Date(order.prazo).toLocaleDateString('pt-PT');
             const statusClass = order.estado.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
             
-            // Botões extras para estado Pendente
+            const card = document.createElement('div');
+            card.className = 'order-card';
+            
+            // Botões de ação se estiver pendente
             let actionBtns = '';
             if (order.estado === 'Pendente') {
                 actionBtns = `
                     <button class="btn-manage btn-edit" data-id="${order.id}">Editar</button>
                     <button class="btn-manage btn-cancel" data-id="${order.id}">Cancelar</button>
+                    <button class="btn-manage btn-assign" data-id="${order.id}">Atribuir Estafeta</button>
                 `;
             }
 
-            const card = document.createElement('div');
-            card.className = 'order-card';
             card.innerHTML = `
                 <div class="order-info">
                     <span class="order-ref">${order.id}</span>
@@ -471,83 +491,224 @@ document.addEventListener('DOMContentLoaded', () => {
             ordersContainer.appendChild(card);
         });
 
-        // Event Listeners para os novos botões
+        // Event listeners para novos botões
+        document.querySelectorAll('.btn-track').forEach(btn => {
+            btn.addEventListener('click', (e) => openTrackingModal(e.target.dataset.id));
+        });
+        document.querySelectorAll('.btn-assign').forEach(btn => {
+            btn.addEventListener('click', (e) => openAssignModal(e.target.dataset.id));
+        });
         document.querySelectorAll('.btn-edit').forEach(btn => {
             btn.addEventListener('click', (e) => openEditOrderModal(e.target.dataset.id));
         });
         document.querySelectorAll('.btn-cancel').forEach(btn => {
             btn.addEventListener('click', (e) => openCancelModal(e.target.dataset.id));
         });
-        document.querySelectorAll('.btn-track').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const order = getOrders().find(o => o.id === e.target.dataset.id);
-                if (order) {
-                    let historyHtml = `<h3>Rastreio: ${order.id}</h3><div class="timeline">`;
-                    order.historicoEstado.forEach(h => {
-                        historyHtml += `<div class="timeline-item"><div class="timeline-content"><span class="time">${new Date(h.timestamp).toLocaleString('pt-PT')}</span><p class="status-text">${h.estado}</p>${h.motivo ? `<p style="font-size:0.8rem;color:var(--text-muted);">Motivo: ${h.motivo}</p>` : ''}</div></div>`;
-                    });
-                    historyHtml += '</div>';
-                    showModal(historyHtml);
-                }
-            });
+    }
+
+    // ---- 5. GESTÃO DE ESTAFETAS ----
+    const couriersContainer = document.getElementById('couriersContainer');
+
+    function renderCouriersList() {
+        const couriers = getCouriers();
+        couriersContainer.innerHTML = '';
+        if (couriers.length === 0) {
+            couriersContainer.innerHTML = '<div class="no-data">Nenhum estafeta registado.</div>';
+            return;
+        }
+
+        couriers.forEach(c => {
+            const statusClass = c.disponivel ? '' : 'unavailable';
+            const statusTxt = c.disponivel ? 'Disponível' : 'Indisponível';
+            const card = document.createElement('div');
+            card.className = `client-card courier-card ${statusClass}`;
+            card.innerHTML = `
+                <div class="client-info">
+                    <h3>${c.nome}</h3>
+                    <p>Zona: <span class="badge-zone">${c.zona}</span> | Status: <strong>${statusTxt}</strong></p>
+                </div>
+            `;
+            couriersContainer.appendChild(card);
         });
     }
 
-    // ---- LÓGICA DE CANCELAMENTO ----
+    // ---- 6. ATRIBUIÇÃO DE ENCOMENDA ----
+    const assignModal = document.getElementById('assignCourierModal');
+    const availableCouriersList = document.getElementById('availableCouriersList');
+    const btnConfirmAssignment = document.getElementById('btnConfirmAssignment');
+    const btnAutoSuggest = document.getElementById('btnAutoSuggest');
+    let selectedCourierId = null;
+
+    function openAssignModal(orderId) {
+        const order = getOrders().find(o => o.id === orderId);
+        if (!order) return;
+
+        document.getElementById('assignOrderId').value = orderId;
+        document.getElementById('assignOrderRef').textContent = order.id;
+        document.getElementById('assignOrderDest').textContent = order.destinoInfo;
+        
+        // Extrair localidade (tenta encontrar no destinoInfo)
+        // Assume formato: Rua, CP Localidade
+        const parts = order.destinoInfo.split(' ');
+        const zone = parts[parts.length - 1]; // Pega a última palavra como zona aproximada
+
+        selectedCourierId = null;
+        document.getElementById('selectedCourierId').value = "";
+        document.getElementById('selectedCourierInfo').classList.add('hidden');
+        btnConfirmAssignment.disabled = true;
+
+        renderAvailableCouriers(zone);
+        assignModal.classList.remove('hidden');
+    }
+
+    function renderAvailableCouriers(zone) {
+        const couriers = getCouriers();
+        availableCouriersList.innerHTML = '';
+        
+        // Filtrar por zona e disponibilidade
+        const filtered = couriers.filter(c => c.zona.toLowerCase() === zone.toLowerCase());
+
+        if (filtered.length === 0) {
+            availableCouriersList.innerHTML = '<div class="no-data">Nenhum estafeta disponível para esta zona.</div>';
+            return;
+        }
+
+        filtered.forEach(c => {
+            const item = document.createElement('div');
+            item.className = `courier-item ${!c.disponivel ? 'disabled' : ''}`;
+            item.innerHTML = `
+                <div>
+                    <strong>${c.nome}</strong><br>
+                    <small>${c.zona}</small>
+                </div>
+                <span>${c.disponivel ? '✅' : '❌'}</span>
+            `;
+            
+            if (c.disponivel) {
+                item.onclick = () => selectCourier(c);
+            }
+            availableCouriersList.appendChild(item);
+        });
+    }
+
+    function selectCourier(courier) {
+        selectedCourierId = courier.id;
+        document.getElementById('selectedCourierId').value = courier.id;
+        document.getElementById('selectedCourierName').textContent = courier.nome;
+        document.getElementById('selectedCourierInfo').classList.remove('hidden');
+        btnConfirmAssignment.disabled = false;
+
+        // Visual feedback
+        document.querySelectorAll('.courier-item').forEach(el => el.classList.remove('selected'));
+        event.currentTarget.classList.add('selected');
+    }
+
+    btnAutoSuggest.onclick = () => {
+        const zone = document.getElementById('assignOrderDest').textContent.split(' ').pop();
+        const couriers = getCouriers().filter(c => c.zona.toLowerCase() === zone.toLowerCase() && c.disponivel);
+        
+        if (couriers.length > 0) {
+            // Sugere o primeiro disponível
+            const item = Array.from(document.querySelectorAll('.courier-item')).find(el => el.innerHTML.includes(couriers[0].nome));
+            if (item) item.click();
+        } else {
+            alert('Não foi possível encontrar uma sugestão automática para esta zona.');
+        }
+    };
+
+    btnConfirmAssignment.onclick = () => {
+        const orderId = document.getElementById('assignOrderId').value;
+        const courierId = document.getElementById('selectedCourierId').value;
+        const courier = getCouriers().find(c => c.id === courierId);
+
+        if (!orderId || !courierId) return;
+
+        const orders = getOrders();
+        const oIndex = orders.findIndex(o => o.id === orderId);
+        
+        orders[oIndex].estado = 'Em distribuição';
+        orders[oIndex].courierId = courierId;
+        orders[oIndex].courierName = courier.nome;
+        orders[oIndex].historicoEstado.push({
+            estado: 'Em distribuição',
+            timestamp: new Date().toISOString(),
+            motivo: `Atribuída ao estafeta ${courier.nome}`
+        });
+
+        saveOrders(orders);
+        assignModal.classList.add('hidden');
+        renderOrdersList();
+
+        alert(`Confirmação: Encomenda ${orderId} atribuída a ${courier.nome}.\nO cliente foi notificado.`);
+    };
+
+    document.getElementById('closeAssignModalBtn').onclick = () => assignModal.classList.add('hidden');
+
+    // Função de rastreio (complemento)
+    function openTrackingModal(orderId) {
+        const order = getOrders().find(o => o.id === orderId);
+        if (!order) return;
+
+        let timelineHtml = '<div class="timeline">';
+        order.historicoEstado.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)).forEach(h => {
+            const dateStr = new Date(h.timestamp).toLocaleString('pt-PT');
+            timelineHtml += `
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <span class="time">${dateStr}</span>
+                        <span class="status-text">${h.estado}</span>
+                        ${h.motivo ? `<p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">${h.motivo}</p>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        timelineHtml += '</div>';
+
+        showModal(`
+            <h2>Rastreio da Encomenda ${order.id}</h2>
+            <p><strong>Produto:</strong> ${order.produto}</p>
+            ${timelineHtml}
+        `);
+    }
+
+    // ---- 7. CANCELAMENTO E EDIÇÃO DE ENCOMENDA ----
     const cancelModal = document.getElementById('cancelOrderModal');
     const cancelForm = document.getElementById('cancelOrderForm');
-    
+    const editModal = document.getElementById('editOrderModal');
+    const editForm = document.getElementById('editOrderForm');
+
     function openCancelModal(orderId) {
         const order = getOrders().find(o => o.id === orderId);
         if (!order) return;
         document.getElementById('cancelOrderId').value = orderId;
-        document.getElementById('cancelOrderRef').textContent = orderId;
-        document.getElementById('cancelReason').value = '';
+        document.getElementById('cancelOrderRef').textContent = order.id;
+        cancelForm.reset();
         cancelModal.classList.remove('hidden');
     }
-
-    document.getElementById('closeCancelModalBtn').addEventListener('click', () => cancelModal.classList.add('hidden'));
 
     cancelForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const orderId = document.getElementById('cancelOrderId').value;
         const reason = document.getElementById('cancelReason').value.trim();
-
-        if (!reason) {
-            alert('O motivo do cancelamento é obrigatório.');
-            return;
-        }
-
+        
         const orders = getOrders();
         const oIndex = orders.findIndex(o => o.id === orderId);
-        if (oIndex === -1) return;
-
-        if (orders[oIndex].estado !== 'Pendente') {
-            alert('Apenas encomendas pendentes podem ser canceladas.');
-            return;
-        }
-
-        const timestamp = new Date().toISOString();
+        
         orders[oIndex].estado = 'Cancelada';
         orders[oIndex].historicoEstado.push({
             estado: 'Cancelada',
-            timestamp: timestamp,
+            timestamp: new Date().toISOString(),
             motivo: reason
         });
-
+        
         saveOrders(orders);
         cancelModal.classList.add('hidden');
         renderOrdersList();
-
-        // Simulação de Notificação Automática ao Cliente
-        setTimeout(() => {
-            alert(`[Notificação Automática] Enviada para o cliente ${orders[oIndex].clientName}:\n"A sua encomenda ${orderId} foi cancelada. Motivo: ${reason}"`);
-        }, 500);
+        
+        alert(`A encomenda ${orderId} foi cancelada.\nO cliente foi notificado automaticamente.`);
     });
 
-    // ---- LÓGICA DE EDIÇÃO ----
-    const editModal = document.getElementById('editOrderModal');
-    const editForm = document.getElementById('editOrderForm');
+    document.getElementById('closeCancelModalBtn').onclick = () => cancelModal.classList.add('hidden');
 
     function openEditOrderModal(orderId) {
         const order = getOrders().find(o => o.id === orderId);
@@ -558,26 +719,21 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editOrderWeight').value = order.peso;
         document.getElementById('editOrderDeadline').value = order.prazo;
 
-        // Popular destinos do cliente da encomenda
+        // Popular destinos do cliente
         const client = getClients().find(c => c.id === order.clientId);
-        const destSelect = document.getElementById('editOrderDest');
-        destSelect.innerHTML = '';
-        
-        if (client && client.enderecos) {
-            client.enderecos.forEach(addr => {
-                const opt = document.createElement('option');
-                const addrTxt = `${addr.rua}, ${addr.codigoPostal} ${addr.localidade}`;
-                opt.value = addrTxt;
-                opt.textContent = addrTxt;
-                if (addrTxt === order.destinoInfo) opt.selected = true;
-                destSelect.appendChild(opt);
-            });
-        }
+        const editOrderDest = document.getElementById('editOrderDest');
+        editOrderDest.innerHTML = '';
+        client.enderecos.forEach(addr => {
+            const opt = document.createElement('option');
+            opt.value = addr.id;
+            const fullAddr = `${addr.rua}, ${addr.codigoPostal} ${addr.localidade}`;
+            opt.textContent = fullAddr;
+            if (fullAddr === order.destinoInfo) opt.selected = true;
+            editOrderDest.appendChild(opt);
+        });
 
         editModal.classList.remove('hidden');
     }
-
-    document.getElementById('closeEditModalBtn').addEventListener('click', () => editModal.classList.add('hidden'));
 
     editForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -585,26 +741,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const product = document.getElementById('editOrderProduct').value.trim();
         const weight = document.getElementById('editOrderWeight').value;
         const deadline = document.getElementById('editOrderDeadline').value;
-        const destino = document.getElementById('editOrderDest').value;
-
-        if (!product || !weight || !deadline || !destino) {
-            alert('Por favor, preencha todos os campos.');
-            return;
-        }
+        const destId = document.getElementById('editOrderDest').value;
 
         const orders = getOrders();
         const oIndex = orders.findIndex(o => o.id === orderId);
-        if (oIndex === -1) return;
+        const order = orders[oIndex];
+        const client = getClients().find(c => c.id === order.clientId);
+        const address = client.enderecos.find(a => a.id === destId);
+        const newDestInfo = `${address.rua}, ${address.codigoPostal} ${address.localidade}`;
 
-        orders[oIndex].produto = product;
-        orders[oIndex].peso = parseFloat(weight);
-        orders[oIndex].prazo = deadline;
-        orders[oIndex].destinoInfo = destino;
+        order.produto = product;
+        order.peso = parseFloat(weight);
+        order.prazo = deadline;
+        order.destinoInfo = newDestInfo;
         
-        orders[oIndex].historicoEstado.push({
-            estado: 'Editada',
+        order.historicoEstado.push({
+            estado: order.estado,
             timestamp: new Date().toISOString(),
-            motivo: 'Correção de erros pelo operador'
+            motivo: 'Dados da encomenda editados pelo operador'
         });
 
         saveOrders(orders);
@@ -613,4 +767,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         alert('Encomenda atualizada com sucesso!');
     });
+
+    document.getElementById('closeEditModalBtn').onclick = () => editModal.classList.add('hidden');
 });

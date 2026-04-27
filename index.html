@@ -18,6 +18,7 @@
             <button class="tab-btn" data-target="tab-list">Clientes Registados</button>
             <button class="tab-btn" data-target="tab-order">Nova Encomenda</button>
             <button class="tab-btn" data-target="tab-orders-list">Lista Encomendas</button>
+            <button class="tab-btn" data-target="tab-couriers">Estafetas</button>
         </nav>
 
         <div class="main-content">
@@ -225,6 +226,19 @@
                     </div>
                 </div>
             </div>
+
+            <!-- TAB 5: Lista de Estafetas -->
+            <div id="tab-couriers" class="tab-content">
+                <div class="form-wrapper">
+                    <div class="header">
+                        <h1>Estafetas Disponíveis</h1>
+                        <p>Consulte a lista de estafetas por zona e a sua disponibilidade.</p>
+                    </div>
+                    <div id="couriersContainer" class="clients-grid">
+                        <!-- Estafetas inseridos via JS -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -273,11 +287,107 @@
                         </div>
 
                         <div class="address-form-actions">
-                            <button type="button" id="cancelAddrEditBtn" class="secondary-btn hidden"
-                                style="margin-top: 1rem;">Cancelar</button>
+                            <button type="button" id="cancelAddrEditBtn" class="secondary-btn hidden" style="margin-top: 1rem;">Cancelar</button>
                             <button type="submit" class="submit-btn">Guardar Endereço</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Cancelamento de Encomenda -->
+    <div id="cancelOrderModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Cancelar Encomenda</h2>
+                <button id="closeCancelModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="client-info-banner">
+                    Referência: <strong id="cancelOrderRef">ENC-XXXX</strong>
+                </div>
+                <form id="cancelOrderForm">
+                    <input type="hidden" id="cancelOrderId">
+                    <div class="input-group">
+                        <label for="cancelReason">Motivo do Cancelamento <span class="required">*</span></label>
+                        <textarea id="cancelReason" rows="3" required placeholder="Explique o motivo do cancelamento..."></textarea>
+                        <span class="error-msg">O motivo é obrigatório.</span>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn delete-btn">Confirmar Cancelamento</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Edição de Encomenda -->
+    <div id="editOrderModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Encomenda</h2>
+                <button id="closeEditModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editOrderForm" novalidate>
+                    <input type="hidden" id="editOrderId">
+                    <div class="input-group">
+                        <label for="editOrderProduct">Produto <span class="required">*</span></label>
+                        <input type="text" id="editOrderProduct" required>
+                    </div>
+                    <div class="row">
+                        <div class="input-group half">
+                            <label for="editOrderWeight">Peso (Kg) <span class="required">*</span></label>
+                            <input type="number" id="editOrderWeight" step="0.01" min="0.1" required>
+                        </div>
+                        <div class="input-group half">
+                            <label for="editOrderDeadline">Prazo de Entrega <span class="required">*</span></label>
+                            <input type="date" id="editOrderDeadline" required>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="editOrderDest">Destino de Entrega <span class="required">*</span></label>
+                        <select id="editOrderDest" required>
+                            <!-- Populado via JS -->
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn">Guardar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Atribuição de Estafeta -->
+    <div id="assignCourierModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Atribuir Estafeta</h2>
+                <button id="closeAssignModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="client-info-banner">
+                    Encomenda: <strong id="assignOrderRef">ENC-XXXX</strong><br>
+                    Destino: <strong id="assignOrderDest">Localidade</strong>
+                </div>
+                <div class="form-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Estafetas na Zona</h3>
+                        <button id="btnAutoSuggest" class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Sugerir Automático</button>
+                    </div>
+                    <div id="availableCouriersList" class="addresses-list">
+                        <!-- Lista de estafetas via JS -->
+                    </div>
+                    <div id="selectedCourierInfo" class="hidden" style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: 8px; border: 1px solid var(--info-text);">
+                        Selecionado: <strong id="selectedCourierName">Nome</strong>
+                    </div>
+                    <div class="form-actions" style="margin-top: 1.5rem;">
+                        <input type="hidden" id="assignOrderId">
+                        <input type="hidden" id="selectedCourierId">
+                        <button id="btnConfirmAssignment" class="submit-btn" disabled>Confirmar Atribuição</button>
+                    </div>
                 </div>
             </div>
         </div>
