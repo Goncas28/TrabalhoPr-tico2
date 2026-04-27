@@ -441,6 +441,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const prazoDate = new Date(order.prazo).toLocaleDateString('pt-PT');
             const statusClass = order.estado.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
             
+            // Botões extras para estado Pendente
+            let actionBtns = '';
+            if (order.estado === 'Pendente') {
+                actionBtns = `
+                    <button class="btn-manage btn-edit" data-id="${order.id}">Editar</button>
+                    <button class="btn-manage btn-cancel" data-id="${order.id}">Cancelar</button>
+                `;
+            }
+
             const card = document.createElement('div');
             card.className = 'order-card';
             card.innerHTML = `
@@ -454,11 +463,154 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="order-actions" style="text-align:right;">
-                    <p style="margin-bottom: 1rem;"><strong>Prazo:</strong> <br>${prazoDate}</p>
+                    <p style="margin-bottom: 0.5rem;"><strong>Prazo:</strong> <br>${prazoDate}</p>
                     <button class="btn-manage btn-track" data-id="${order.id}">Rastrear</button>
+                    ${actionBtns}
                 </div>
             `;
             ordersContainer.appendChild(card);
         });
+
+        // Event Listeners para os novos botões
+        document.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => openEditOrderModal(e.target.dataset.id));
+        });
+        document.querySelectorAll('.btn-cancel').forEach(btn => {
+            btn.addEventListener('click', (e) => openCancelModal(e.target.dataset.id));
+        });
+        document.querySelectorAll('.btn-track').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const order = getOrders().find(o => o.id === e.target.dataset.id);
+                if (order) {
+                    let historyHtml = `<h3>Rastreio: ${order.id}</h3><div class="timeline">`;
+                    order.historicoEstado.forEach(h => {
+                        historyHtml += `<div class="timeline-item"><div class="timeline-content"><span class="time">${new Date(h.timestamp).toLocaleString('pt-PT')}</span><p class="status-text">${h.estado}</p>${h.motivo ? `<p style="font-size:0.8rem;color:var(--text-muted);">Motivo: ${h.motivo}</p>` : ''}</div></div>`;
+                    });
+                    historyHtml += '</div>';
+                    showModal(historyHtml);
+                }
+            });
+        });
     }
+
+    // ---- LÓGICA DE CANCELAMENTO ----
+    const cancelModal = document.getElementById('cancelOrderModal');
+    const cancelForm = document.getElementById('cancelOrderForm');
+    
+    function openCancelModal(orderId) {
+        const order = getOrders().find(o => o.id === orderId);
+        if (!order) return;
+        document.getElementById('cancelOrderId').value = orderId;
+        document.getElementById('cancelOrderRef').textContent = orderId;
+        document.getElementById('cancelReason').value = '';
+        cancelModal.classList.remove('hidden');
+    }
+
+    document.getElementById('closeCancelModalBtn').addEventListener('click', () => cancelModal.classList.add('hidden'));
+
+    cancelForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const orderId = document.getElementById('cancelOrderId').value;
+        const reason = document.getElementById('cancelReason').value.trim();
+
+        if (!reason) {
+            alert('O motivo do cancelamento é obrigatório.');
+            return;
+        }
+
+        const orders = getOrders();
+        const oIndex = orders.findIndex(o => o.id === orderId);
+        if (oIndex === -1) return;
+
+        if (orders[oIndex].estado !== 'Pendente') {
+            alert('Apenas encomendas pendentes podem ser canceladas.');
+            return;
+        }
+
+        const timestamp = new Date().toISOString();
+        orders[oIndex].estado = 'Cancelada';
+        orders[oIndex].historicoEstado.push({
+            estado: 'Cancelada',
+            timestamp: timestamp,
+            motivo: reason
+        });
+
+        saveOrders(orders);
+        cancelModal.classList.add('hidden');
+        renderOrdersList();
+
+        // Simulação de Notificação Automática ao Cliente
+        setTimeout(() => {
+            alert(`[Notificação Automática] Enviada para o cliente ${orders[oIndex].clientName}:\n"A sua encomenda ${orderId} foi cancelada. Motivo: ${reason}"`);
+        }, 500);
+    });
+
+    // ---- LÓGICA DE EDIÇÃO ----
+    const editModal = document.getElementById('editOrderModal');
+    const editForm = document.getElementById('editOrderForm');
+
+    function openEditOrderModal(orderId) {
+        const order = getOrders().find(o => o.id === orderId);
+        if (!order) return;
+
+        document.getElementById('editOrderId').value = orderId;
+        document.getElementById('editOrderProduct').value = order.produto;
+        document.getElementById('editOrderWeight').value = order.peso;
+        document.getElementById('editOrderDeadline').value = order.prazo;
+
+        // Popular destinos do cliente da encomenda
+        const client = getClients().find(c => c.id === order.clientId);
+        const destSelect = document.getElementById('editOrderDest');
+        destSelect.innerHTML = '';
+        
+        if (client && client.enderecos) {
+            client.enderecos.forEach(addr => {
+                const opt = document.createElement('option');
+                const addrTxt = `${addr.rua}, ${addr.codigoPostal} ${addr.localidade}`;
+                opt.value = addrTxt;
+                opt.textContent = addrTxt;
+                if (addrTxt === order.destinoInfo) opt.selected = true;
+                destSelect.appendChild(opt);
+            });
+        }
+
+        editModal.classList.remove('hidden');
+    }
+
+    document.getElementById('closeEditModalBtn').addEventListener('click', () => editModal.classList.add('hidden'));
+
+    editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const orderId = document.getElementById('editOrderId').value;
+        const product = document.getElementById('editOrderProduct').value.trim();
+        const weight = document.getElementById('editOrderWeight').value;
+        const deadline = document.getElementById('editOrderDeadline').value;
+        const destino = document.getElementById('editOrderDest').value;
+
+        if (!product || !weight || !deadline || !destino) {
+            alert('Por favor, preencha todos os campos.');
+            return;
+        }
+
+        const orders = getOrders();
+        const oIndex = orders.findIndex(o => o.id === orderId);
+        if (oIndex === -1) return;
+
+        orders[oIndex].produto = product;
+        orders[oIndex].peso = parseFloat(weight);
+        orders[oIndex].prazo = deadline;
+        orders[oIndex].destinoInfo = destino;
+        
+        orders[oIndex].historicoEstado.push({
+            estado: 'Editada',
+            timestamp: new Date().toISOString(),
+            motivo: 'Correção de erros pelo operador'
+        });
+
+        saveOrders(orders);
+        editModal.classList.add('hidden');
+        renderOrdersList();
+        
+        alert('Encomenda atualizada com sucesso!');
+    });
 });
