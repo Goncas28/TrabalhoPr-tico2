@@ -231,9 +231,68 @@
             <div id="tab-couriers" class="tab-content">
                 <div class="form-wrapper">
                     <div class="header">
-                        <h1>Estafetas Disponíveis</h1>
-                        <p>Consulte a lista de estafetas por zona e a sua disponibilidade.</p>
+                        <h1>Gestão de Estafetas</h1>
+                        <p>Registe novos estafetas e monitorize a sua disponibilidade e carga de trabalho.</p>
                     </div>
+
+                    <!-- Novo Formário de Registo de Estafeta -->
+                    <form id="courierForm" novalidate style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 2px dashed var(--border);">
+                        <div class="input-group">
+                            <label for="cNome">Nome Completo <span class="required">*</span></label>
+                            <input type="text" id="cNome" name="cNome" placeholder="Ex: Carlos Oliveira" required>
+                            <span class="error-msg">O nome é obrigatório.</span>
+                        </div>
+
+                        <div class="row">
+                            <div class="input-group half">
+                                <label for="cContacto">Contacto <span class="required">*</span></label>
+                                <input type="tel" id="cContacto" name="cContacto" placeholder="Ex: 912345678" required>
+                                <span class="error-msg">Contacto inválido.</span>
+                            </div>
+                            <div class="input-group half">
+                                <label for="cVeiculo">Veículo <span class="required">*</span></label>
+                                <select id="cVeiculo" name="cVeiculo" required>
+                                    <option value="" disabled selected>Selecione...</option>
+                                    <option value="Bicicleta">Bicicleta</option>
+                                    <option value="Moto">Moto</option>
+                                    <option value="Carro">Carro</option>
+                                    <option value="Carrinha">Carrinha</option>
+                                </select>
+                                <span class="error-msg">Selecione um veículo.</span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="input-group half">
+                                <label for="cZona">Zona de Atuação <span class="required">*</span></label>
+                                <input type="text" id="cZona" name="cZona" placeholder="Ex: Lisboa" required>
+                                <span class="error-msg">A zona é obrigatória.</span>
+                            </div>
+                            <div class="input-group half">
+                                <label for="cCapacidade">Capacidade Máx. (Encomendas) <span class="required">*</span></label>
+                                <input type="number" id="cCapacidade" name="cCapacidade" min="1" value="5" required>
+                                <span class="error-msg">Mínimo 1 encomenda.</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="cHorario">Horários de Disponibilidade <span class="required">*</span></label>
+                            <input type="text" id="cHorario" name="cHorario" placeholder="Ex: 09:00 - 18:00, Seg-Sex" required>
+                            <span class="error-msg">O horário é obrigatório.</span>
+                        </div>
+
+                        <button type="submit" class="submit-btn">
+                            Registar Estafeta
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="8.5" cy="7" r="4"></circle>
+                                <line x1="20" y1="8" x2="20" y2="14"></line>
+                                <line x1="17" y1="11" x2="23" y2="11"></line>
+                            </svg>
+                        </button>
+                    </form>
+
                     <div id="couriersContainer" class="clients-grid">
                         <!-- Estafetas inseridos via JS -->
                     </div>

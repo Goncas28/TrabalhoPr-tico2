@@ -72,11 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveOrders(orders) { localStorage.setItem('orders', JSON.stringify(orders)); }
     function getCouriers() { 
         const defaultCouriers = [
-            { id: 'EST-001', nome: 'João Silva', zona: 'Lisboa', disponivel: true },
-            { id: 'EST-002', nome: 'Maria Santos', zona: 'Lisboa', disponivel: true },
-            { id: 'EST-003', nome: 'Pedro Lima', zona: 'Porto', disponivel: true },
-            { id: 'EST-004', nome: 'Ana Costa', zona: 'Lisboa', disponivel: false },
-            { id: 'EST-005', nome: 'Carlos Sousa', zona: 'Setúbal', disponivel: true }
+            { id: 'EST-001', nome: 'João Silva', zona: 'Lisboa', disponivel: true, contacto: '912345671', veiculo: 'Moto', horarios: '09:00-18:00', capacidade: 5 },
+            { id: 'EST-002', nome: 'Maria Santos', zona: 'Lisboa', disponivel: true, contacto: '912345672', veiculo: 'Carrinha', horarios: '08:00-20:00', capacidade: 8 },
+            { id: 'EST-003', nome: 'Pedro Lima', zona: 'Porto', disponivel: true, contacto: '912345673', veiculo: 'Carro', horarios: '10:00-19:00', capacidade: 6 },
+            { id: 'EST-004', nome: 'Ana Costa', zona: 'Lisboa', disponivel: false, contacto: '912345674', veiculo: 'Bicicleta', horarios: '12:00-22:00', capacidade: 3 },
+            { id: 'EST-005', nome: 'Carlos Sousa', zona: 'Setúbal', disponivel: true, contacto: '912345675', veiculo: 'Moto', horarios: '09:00-18:00', capacidade: 5 }
         ];
         const stored = localStorage.getItem('couriers');
         if (!stored) {
@@ -507,30 +507,129 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ---- 5. GESTÃO DE ESTAFETAS ----
+    const courierForm = document.getElementById('courierForm');
     const couriersContainer = document.getElementById('couriersContainer');
+
+    if (courierForm) {
+        courierForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const inputs = {
+                nome: document.getElementById('cNome'),
+                contacto: document.getElementById('cContacto'),
+                veiculo: document.getElementById('cVeiculo'),
+                zona: document.getElementById('cZona'),
+                capacidade: document.getElementById('cCapacidade'),
+                horario: document.getElementById('cHorario')
+            };
+
+            let isValid = true;
+            Object.values(inputs).forEach(input => {
+                if (!input.value.trim()) {
+                    input.parentElement.classList.add('invalid');
+                    isValid = false;
+                } else {
+                    input.parentElement.classList.remove('invalid');
+                }
+            });
+
+            if (isValid) {
+                const newCourier = {
+                    id: `EST-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+                    nome: inputs.nome.value.trim(),
+                    contacto: inputs.contacto.value.trim(),
+                    veiculo: inputs.veiculo.value,
+                    zona: inputs.zona.value.trim(),
+                    capacidade: parseInt(inputs.capacidade.value),
+                    horarios: inputs.horario.value.trim(),
+                    disponivel: true
+                };
+
+                const couriers = getCouriers();
+                couriers.push(newCourier);
+                saveCouriers(couriers);
+                
+                courierForm.reset();
+                renderCouriersList();
+                alert('Estafeta registado com sucesso!');
+            }
+        });
+    }
 
     function renderCouriersList() {
         const couriers = getCouriers();
+        const orders = getOrders();
         couriersContainer.innerHTML = '';
+        
         if (couriers.length === 0) {
             couriersContainer.innerHTML = '<div class="no-data">Nenhum estafeta registado.</div>';
             return;
         }
 
         couriers.forEach(c => {
+            // Calcular carga de trabalho atual (encomendas em distribuição)
+            const activeDeliveries = orders.filter(o => o.courierId === c.id && o.estado === 'Em distribuição').length;
+            const workloadPercent = Math.min((activeDeliveries / (c.capacidade || 5)) * 100, 100);
+            
+            let workloadClass = '';
+            if (workloadPercent > 80) workloadClass = 'danger';
+            else if (workloadPercent > 50) workloadClass = 'warning';
+
             const statusClass = c.disponivel ? '' : 'unavailable';
             const statusTxt = c.disponivel ? 'Disponível' : 'Indisponível';
+            
             const card = document.createElement('div');
             card.className = `client-card courier-card ${statusClass}`;
             card.innerHTML = `
-                <div class="client-info">
-                    <h3>${c.nome}</h3>
-                    <p>Zona: <span class="badge-zone">${c.zona}</span> | Status: <strong>${statusTxt}</strong></p>
+                <div class="courier-header">
+                    <div class="client-info">
+                        <h3 style="margin-bottom: 0.25rem;">${c.nome}</h3>
+                        <span class="badge-zone">${c.zona}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <button class="secondary-btn" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="window.toggleCourierStatus('${c.id}')">
+                            Alterar para ${c.disponivel ? 'Indisponível' : 'Disponível'}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="courier-details-grid">
+                    <div class="courier-detail-item">
+                        <label>Contacto</label>
+                        <span>${c.contacto || 'N/A'}</span>
+                    </div>
+                    <div class="courier-detail-item">
+                        <label>Veículo</label>
+                        <span>${c.veiculo || 'N/A'}</span>
+                    </div>
+                    <div class="courier-detail-item">
+                        <label>Horário</label>
+                        <span>${c.horarios || 'N/A'}</span>
+                    </div>
+                </div>
+
+                <div class="workload-section">
+                    <div class="workload-header">
+                        <span>Carga de Trabalho</span>
+                        <span>${activeDeliveries} / ${c.capacidade || 5} Encomendas</span>
+                    </div>
+                    <div class="workload-bar-container">
+                        <div class="workload-bar-fill ${workloadClass}" style="width: ${workloadPercent}%"></div>
+                    </div>
                 </div>
             `;
             couriersContainer.appendChild(card);
         });
     }
+
+    window.toggleCourierStatus = function(courierId) {
+        const couriers = getCouriers();
+        const cIndex = couriers.findIndex(c => c.id === courierId);
+        if (cIndex !== -1) {
+            couriers[cIndex].disponivel = !couriers[cIndex].disponivel;
+            saveCouriers(couriers);
+            renderCouriersList();
+        }
+    };
 
     // ---- 6. ATRIBUIÇÃO DE ENCOMENDA ----
     const assignModal = document.getElementById('assignCourierModal');
