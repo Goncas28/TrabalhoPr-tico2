@@ -87,6 +87,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function saveCouriers(couriers) { localStorage.setItem('couriers', JSON.stringify(couriers)); }
 
+    function getVehicles() {
+        const defaultVehicles = [
+            { id: 'BIC-01', tipo: 'Bicicleta', capacidade: 5, estado: 'Disponível' },
+            { id: 'MOT-01', tipo: 'Motorizada', capacidade: 10, estado: 'Disponível' },
+            { id: 'CAR-01', tipo: 'Carrinha', capacidade: 50, estado: 'Disponível' },
+            { id: 'CAR-02', tipo: 'Carrinha', capacidade: 45, estado: 'Em Manutenção' }
+        ];
+        const stored = localStorage.getItem('vehicles');
+        if (!stored) {
+            localStorage.setItem('vehicles', JSON.stringify(defaultVehicles));
+            return defaultVehicles;
+        }
+        return JSON.parse(stored);
+    }
+    function saveVehicles(vehicles) { localStorage.setItem('vehicles', JSON.stringify(vehicles)); }
+
     // ---- DOM Elements ----
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -104,12 +120,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.dataset.target === 'tab-list') renderClientsList();
             if (btn.dataset.target === 'tab-order') populateOrderClientSelect();
             if (btn.dataset.target === 'tab-orders-list') renderOrdersList();
-            if (btn.dataset.target === 'tab-couriers') renderCouriersList();
+            if (btn.dataset.target === 'tab-couriers') {
+                if(typeof populateCourierVehicleSelect === 'function') populateCourierVehicleSelect();
+                renderCouriersList();
+            }
             if (btn.dataset.target === 'tab-routes') {
                 if(typeof initRoutePlanning === 'function') initRoutePlanning();
                 if(typeof routeMap !== 'undefined' && routeMap) {
                     setTimeout(() => routeMap.invalidateSize(), 100);
                 }
+            }
+            if (btn.dataset.target === 'tab-fleet') {
+                if(typeof renderVehiclesList === 'function') renderVehiclesList();
             }
         });
     });
@@ -1136,4 +1158,131 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hook to initialize route planning when the tab is clicked
     // We already have a tabBtns listener, but we can hook into it or add a specific one.
     // The previous listener in the file already does some hooks, we'll patch it below.
+
+    // ---- 9. GESTÃO DE FROTA ----
+    const vehicleForm = document.getElementById('vehicleForm');
+    const fleetContainer = document.getElementById('fleetContainer');
+
+    function populateCourierVehicleSelect() {
+        const select = document.getElementById('cVeiculo');
+        if (!select) return;
+        const availableVehicles = getVehicles().filter(v => v.estado === 'Disponível');
+        select.innerHTML = '<option value="" disabled selected>Selecione um veículo livre...</option>';
+        availableVehicles.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.id;
+            opt.textContent = `${v.id} (${v.tipo} - Cap: ${v.capacidade})`;
+            opt.dataset.cap = v.capacidade;
+            select.appendChild(opt);
+        });
+    }
+
+    const cVeiculoSelect = document.getElementById('cVeiculo');
+    const cCapacidadeInput = document.getElementById('cCapacidade');
+    if (cVeiculoSelect && cCapacidadeInput) {
+        cVeiculoSelect.addEventListener('change', (e) => {
+            const selectedOpt = e.target.options[e.target.selectedIndex];
+            if (selectedOpt && selectedOpt.dataset.cap) {
+                cCapacidadeInput.value = selectedOpt.dataset.cap;
+            }
+        });
+    }
+
+    if (vehicleForm) {
+        vehicleForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const inputs = {
+                matricula: document.getElementById('vMatricula'),
+                tipo: document.getElementById('vTipo'),
+                capacidade: document.getElementById('vCapacidade'),
+                estado: document.getElementById('vEstado')
+            };
+
+            let isValid = true;
+            Object.values(inputs).forEach(input => {
+                if (!input.value.trim()) {
+                    input.parentElement.classList.add('invalid');
+                    isValid = false;
+                } else {
+                    input.parentElement.classList.remove('invalid');
+                }
+            });
+
+            if (isValid) {
+                const vehicles = getVehicles();
+                if (vehicles.find(v => v.id === inputs.matricula.value.trim())) {
+                    alert('Já existe um veículo com esta matrícula/ID.');
+                    return;
+                }
+
+                vehicles.push({
+                    id: inputs.matricula.value.trim().toUpperCase(),
+                    tipo: inputs.tipo.value,
+                    capacidade: parseInt(inputs.capacidade.value),
+                    estado: inputs.estado.value
+                });
+
+                saveVehicles(vehicles);
+                vehicleForm.reset();
+                renderVehiclesList();
+                alert('Veículo registado com sucesso na frota!');
+            }
+        });
+    }
+
+    window.toggleVehicleStatus = function(vehicleId) {
+        const vehicles = getVehicles();
+        const vIndex = vehicles.findIndex(v => v.id === vehicleId);
+        if (vIndex > -1) {
+            vehicles[vIndex].estado = vehicles[vIndex].estado === 'Disponível' ? 'Em Manutenção' : 'Disponível';
+            saveVehicles(vehicles);
+            renderVehiclesList();
+            renderCouriersList();
+        }
+    };
+
+    function renderVehiclesList() {
+        const vehicles = getVehicles();
+        if (!fleetContainer) return;
+        fleetContainer.innerHTML = '';
+        
+        if (vehicles.length === 0) {
+            fleetContainer.innerHTML = '<div class="no-data">Nenhum veículo registado.</div>';
+            return;
+        }
+
+        vehicles.forEach(v => {
+            const isMaintenance = v.estado === 'Em Manutenção';
+            const card = document.createElement('div');
+            card.className = `vehicle-card ${isMaintenance ? 'maintenance' : ''}`;
+            
+            card.innerHTML = `
+                <div style="padding: 1.5rem;">
+                    <div class="vehicle-header">
+                        <span class="vehicle-matricula">${v.id}</span>
+                        <span class="badge-vehicle-type">${v.tipo}</span>
+                    </div>
+                    
+                    <div class="vehicle-details-grid">
+                        <div class="vehicle-detail-item">
+                            <label>Capacidade (kg/un)</label>
+                            <span>${v.capacidade}</span>
+                        </div>
+                        <div class="vehicle-detail-item">
+                            <label>Estado</label>
+                            <span style="color: ${isMaintenance ? 'var(--error)' : 'var(--success)'}; font-weight: 700;">
+                                ${isMaintenance ? '⚠️ Em Manutenção' : '✓ Disponível'}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <button class="${isMaintenance ? 'btn-available' : 'btn-maintenance'}" onclick="window.toggleVehicleStatus('${v.id}')">
+                        ${isMaintenance ? 'Marcar como Disponível' : 'Enviar para Manutenção'}
+                    </button>
+                </div>
+            `;
+            fleetContainer.appendChild(card);
+        });
+    }
+
 });

@@ -904,3 +904,117 @@ textarea:focus {
     margin-top: 0.25rem;
     color: var(--text-main);
 }
+
+/* Fleet / Vehicle Styles */
+.vehicle-card {
+    border-left: 5px solid var(--primary);
+    display: flex;
+    flex-direction: column;
+}
+
+.vehicle-card.maintenance {
+    border-left-color: var(--error);
+    background-color: #fef2f2;
+}
+
+.vehicle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.vehicle-matricula {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--text-main);
+    background: var(--input-bg);
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    letter-spacing: 1px;
+}
+
+.vehicle-card.maintenance .vehicle-matricula {
+    background: white;
+    color: var(--error);
+    border-color: #fca5a5;
+}
+
+.vehicle-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    background: var(--input-bg);
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.vehicle-card.maintenance .vehicle-details-grid {
+    background: white;
+}
+
+.vehicle-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.vehicle-detail-item label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 0;
+}
+
+.vehicle-detail-item span {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.badge-vehicle-type {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #e0e7ff;
+    color: #4338ca;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.btn-maintenance {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--error);
+    color: var(--error);
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-maintenance:hover {
+    background: var(--error);
+    color: white;
+}
+
+.btn-available {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--success);
+    color: var(--success);
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-available:hover {
+    background: var(--success);
+    color: white;
+}
