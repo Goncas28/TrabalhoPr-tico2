@@ -105,6 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.dataset.target === 'tab-order') populateOrderClientSelect();
             if (btn.dataset.target === 'tab-orders-list') renderOrdersList();
             if (btn.dataset.target === 'tab-couriers') renderCouriersList();
+            if (btn.dataset.target === 'tab-routes') {
+                if(typeof initRoutePlanning === 'function') initRoutePlanning();
+                if(typeof routeMap !== 'undefined' && routeMap) {
+                    setTimeout(() => routeMap.invalidateSize(), 100);
+                }
+            }
         });
     });
 
@@ -868,4 +874,266 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('closeEditModalBtn').onclick = () => editModal.classList.add('hidden');
+
+    // ---- 8. PLANEAMENTO DE ROTAS ----
+    let routeMap = null;
+    let routeLayer = null;
+    let markersLayer = null;
+    let currentRouteOrders = [];
+
+    const routeZoneSelect = document.getElementById('routeZoneSelect');
+    const btnGenerateRoute = document.getElementById('btnGenerateRoute');
+    const routeContent = document.getElementById('routeContent');
+    const noPendingOrdersMsg = document.getElementById('noPendingOrdersMsg');
+    const routeStopsList = document.getElementById('routeStopsList');
+    const routeCourierSelect = document.getElementById('routeCourierSelect');
+    const btnConfirmRoute = document.getElementById('btnConfirmRoute');
+
+    // Central coordinates mockup for some cities (just for the prototype)
+    const cityCoords = {
+        'lisboa': [38.7223, -9.1393],
+        'porto': [41.1579, -8.6291],
+        'setubal': [38.5244, -8.8882],
+        'setúbal': [38.5244, -8.8882],
+        'coimbra': [40.2056, -8.4195],
+        'faro': [37.0194, -7.9322],
+        'default': [39.3999, -8.2245] // Center of Portugal
+    };
+
+    function initRoutePlanning() {
+        const orders = getOrders().filter(o => o.estado === 'Pendente');
+        
+        // Extract unique zones from pending orders
+        const zones = new Set();
+        orders.forEach(o => {
+            if (!o.destinoInfo) return;
+            const parts = o.destinoInfo.split(' ');
+            const zone = parts[parts.length - 1].trim();
+            if(zone) zones.add(zone);
+        });
+
+        if (routeZoneSelect) {
+            routeZoneSelect.innerHTML = '<option value="" disabled selected>Selecione uma zona com encomendas pendentes...</option>';
+            if (zones.size === 0) {
+                routeZoneSelect.innerHTML = '<option value="" disabled selected>Nenhuma zona com encomendas pendentes.</option>';
+            } else {
+                Array.from(zones).sort().forEach(z => {
+                    const opt = document.createElement('option');
+                    opt.value = z;
+                    opt.textContent = z;
+                    routeZoneSelect.appendChild(opt);
+                });
+            }
+        }
+
+        // Reset UI
+        if(routeContent) routeContent.classList.add('hidden');
+        if(noPendingOrdersMsg) noPendingOrdersMsg.classList.add('hidden');
+    }
+
+    // Initialize Map
+    function initMap(center) {
+        if (!routeMap) {
+            routeMap = L.map('routeMap').setView(center, 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(routeMap);
+            markersLayer = L.layerGroup().addTo(routeMap);
+            routeLayer = L.layerGroup().addTo(routeMap);
+        } else {
+            routeMap.setView(center, 13);
+            markersLayer.clearLayers();
+            routeLayer.clearLayers();
+            setTimeout(() => routeMap.invalidateSize(), 100);
+        }
+    }
+
+    // Haversine distance in km
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    if (btnGenerateRoute) {
+        btnGenerateRoute.addEventListener('click', () => {
+            const selectedZone = routeZoneSelect.value;
+            if (!selectedZone) {
+                alert('Por favor selecione uma zona primeiro.');
+                return;
+            }
+
+            const pendingOrders = getOrders().filter(o => {
+                if (!o.destinoInfo) return false;
+                const parts = o.destinoInfo.split(' ');
+                const zone = parts[parts.length - 1].trim();
+                return o.estado === 'Pendente' && zone.toLowerCase() === selectedZone.toLowerCase();
+            });
+
+            if (pendingOrders.length === 0) {
+                routeContent.classList.add('hidden');
+                noPendingOrdersMsg.classList.remove('hidden');
+                return;
+            }
+
+            noPendingOrdersMsg.classList.add('hidden');
+            routeContent.classList.remove('hidden');
+
+            // Populate couriers for this zone
+            const availableCouriers = getCouriers().filter(c => c.zona.toLowerCase() === selectedZone.toLowerCase() && c.disponivel);
+            routeCourierSelect.innerHTML = '<option value="" disabled selected>Selecione um estafeta...</option>';
+            if(availableCouriers.length === 0) {
+                routeCourierSelect.innerHTML = '<option value="" disabled selected>Nenhum estafeta disponível nesta zona.</option>';
+            } else {
+                availableCouriers.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = `${c.nome} (Cap: ${c.capacidade})`;
+                    routeCourierSelect.appendChild(opt);
+                });
+            }
+            btnConfirmRoute.disabled = true;
+
+            // Mock coordinates for orders
+            const baseCoord = cityCoords[selectedZone.toLowerCase()] || cityCoords['default'];
+            
+            let ordersWithCoords = pendingOrders.map((o) => {
+                // Add a small random offset (approx 0 to 3 km)
+                const latOffset = (Math.random() - 0.5) * 0.04;
+                const lngOffset = (Math.random() - 0.5) * 0.04;
+                return {
+                    ...o,
+                    lat: baseCoord[0] + latOffset,
+                    lng: baseCoord[1] + lngOffset
+                };
+            });
+
+            // Nearest Neighbor Sorting
+            const depot = { lat: baseCoord[0], lng: baseCoord[1] }; // Start point (e.g. city center)
+            let sortedOrders = [];
+            let unvisited = [...ordersWithCoords];
+            let currentPoint = depot;
+            let totalDist = 0;
+
+            while (unvisited.length > 0) {
+                let nearestIdx = 0;
+                let minDist = Infinity;
+
+                for (let i = 0; i < unvisited.length; i++) {
+                    const d = calculateDistance(currentPoint.lat, currentPoint.lng, unvisited[i].lat, unvisited[i].lng);
+                    if (d < minDist) {
+                        minDist = d;
+                        nearestIdx = i;
+                    }
+                }
+
+                const nextOrder = unvisited.splice(nearestIdx, 1)[0];
+                totalDist += minDist;
+                sortedOrders.push(nextOrder);
+                currentPoint = nextOrder;
+            }
+            
+            currentRouteOrders = sortedOrders;
+
+            // Estimate time: Assume 30km/h (0.5 km/min) avg speed in city + 5 min drop-off per order
+            const travelTimeMins = totalDist / 0.5; 
+            const dropoffTimeMins = sortedOrders.length * 5;
+            const totalMins = Math.round(travelTimeMins + dropoffTimeMins);
+            
+            const hours = Math.floor(totalMins / 60);
+            const mins = totalMins % 60;
+            const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
+
+            // Update UI
+            document.getElementById('routeTimeEst').textContent = timeStr;
+            document.getElementById('routeDistEst').textContent = totalDist.toFixed(1) + ' km';
+            document.getElementById('routeCountEst').textContent = sortedOrders.length;
+
+            routeStopsList.innerHTML = '';
+            const latlngs = [];
+            
+            // Initialize Map
+            initMap(baseCoord);
+
+            sortedOrders.forEach((o, index) => {
+                // List Item
+                routeStopsList.innerHTML += `
+                    <div class="timeline-item">
+                        <div class="timeline-content">
+                            <div style="display:flex; justify-content:space-between;">
+                                <span class="route-stop-ref">${index + 1}. ${o.id}</span>
+                                <span style="font-size:0.75rem; color:var(--text-muted);">${o.produto} (${o.peso}kg)</span>
+                            </div>
+                            <p class="route-stop-addr">${o.destinoInfo}</p>
+                        </div>
+                    </div>
+                `;
+
+                // Map Marker
+                const marker = L.marker([o.lat, o.lng]).bindPopup(`<b>${index + 1}. ${o.produto}</b><br>${o.destinoInfo}`);
+                markersLayer.addLayer(marker);
+                latlngs.push([o.lat, o.lng]);
+            });
+
+            // Draw Polyline
+            if (latlngs.length > 1) {
+                const polyline = L.polyline(latlngs, {color: '#4f46e5', weight: 4, opacity: 0.7});
+                routeLayer.addLayer(polyline);
+                routeMap.fitBounds(polyline.getBounds(), {padding: [30, 30]});
+            } else if (latlngs.length === 1) {
+                routeMap.setView(latlngs[0], 14);
+            }
+        });
+    }
+
+    if (routeCourierSelect) {
+        routeCourierSelect.addEventListener('change', () => {
+            btnConfirmRoute.disabled = !routeCourierSelect.value;
+        });
+    }
+
+    if (btnConfirmRoute) {
+        btnConfirmRoute.addEventListener('click', () => {
+            const courierId = routeCourierSelect.value;
+            if (!courierId || currentRouteOrders.length === 0) return;
+
+            const courier = getCouriers().find(c => c.id === courierId);
+            const orders = getOrders();
+
+            currentRouteOrders.forEach(routeOrder => {
+                const oIndex = orders.findIndex(o => o.id === routeOrder.id);
+                if(oIndex > -1) {
+                    orders[oIndex].estado = 'Em distribuição';
+                    orders[oIndex].courierId = courierId;
+                    orders[oIndex].courierName = courier.nome;
+                    orders[oIndex].historicoEstado.push({
+                        estado: 'Em distribuição',
+                        timestamp: new Date().toISOString(),
+                        motivo: `Atribuída via Planeamento de Rota ao estafeta ${courier.nome}`
+                    });
+                }
+            });
+
+            saveOrders(orders);
+            
+            alert(`Rota gerada com sucesso!\n${currentRouteOrders.length} encomendas atribuídas a ${courier.nome}.`);
+            
+            // Reset and refresh
+            initRoutePlanning();
+            renderOrdersList();
+            renderCouriersList();
+            
+            // Switch to Orders List tab to see the updates
+            document.querySelector('.tab-btn[data-target="tab-orders-list"]').click();
+        });
+    }
+
+    // Hook to initialize route planning when the tab is clicked
+    // We already have a tabBtns listener, but we can hook into it or add a specific one.
+    // The previous listener in the file already does some hooks, we'll patch it below.
 });

@@ -236,7 +236,8 @@
                     </div>
 
                     <!-- Novo Formário de Registo de Estafeta -->
-                    <form id="courierForm" novalidate style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 2px dashed var(--border);">
+                    <form id="courierForm" novalidate
+                        style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 2px dashed var(--border);">
                         <div class="input-group">
                             <label for="cNome">Nome Completo <span class="required">*</span></label>
                             <input type="text" id="cNome" name="cNome" placeholder="Ex: Carlos Oliveira" required>
@@ -269,7 +270,8 @@
                                 <span class="error-msg">A zona é obrigatória.</span>
                             </div>
                             <div class="input-group half">
-                                <label for="cCapacidade">Capacidade Máx. (Encomendas) <span class="required">*</span></label>
+                                <label for="cCapacidade">Capacidade Máx. (Encomendas) <span
+                                        class="required">*</span></label>
                                 <input type="number" id="cCapacidade" name="cCapacidade" min="1" value="5" required>
                                 <span class="error-msg">Mínimo 1 encomenda.</span>
                             </div>
@@ -277,7 +279,8 @@
 
                         <div class="input-group">
                             <label for="cHorario">Horários de Disponibilidade <span class="required">*</span></label>
-                            <input type="text" id="cHorario" name="cHorario" placeholder="Ex: 09:00 - 18:00, Seg-Sex" required>
+                            <input type="text" id="cHorario" name="cHorario" placeholder="Ex: 09:00 - 18:00, Seg-Sex"
+                                required>
                             <span class="error-msg">O horário é obrigatório.</span>
                         </div>
 
@@ -346,7 +349,8 @@
                         </div>
 
                         <div class="address-form-actions">
-                            <button type="button" id="cancelAddrEditBtn" class="secondary-btn hidden" style="margin-top: 1rem;">Cancelar</button>
+                            <button type="button" id="cancelAddrEditBtn" class="secondary-btn hidden"
+                                style="margin-top: 1rem;">Cancelar</button>
                             <button type="submit" class="submit-btn">Guardar Endereço</button>
                         </div>
                     </form>
@@ -370,7 +374,8 @@
                     <input type="hidden" id="cancelOrderId">
                     <div class="input-group">
                         <label for="cancelReason">Motivo do Cancelamento <span class="required">*</span></label>
-                        <textarea id="cancelReason" rows="3" required placeholder="Explique o motivo do cancelamento..."></textarea>
+                        <textarea id="cancelReason" rows="3" required
+                            placeholder="Explique o motivo do cancelamento..."></textarea>
                         <span class="error-msg">O motivo é obrigatório.</span>
                     </div>
                     <div class="form-actions">
@@ -432,14 +437,17 @@
                     Destino: <strong id="assignOrderDest">Localidade</strong>
                 </div>
                 <div class="form-section">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h3>Estafetas na Zona</h3>
-                        <button id="btnAutoSuggest" class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Sugerir Automático</button>
+                        <button id="btnAutoSuggest" class="secondary-btn"
+                            style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Sugerir Automático</button>
                     </div>
                     <div id="availableCouriersList" class="addresses-list">
                         <!-- Lista de estafetas via JS -->
                     </div>
-                    <div id="selectedCourierInfo" class="hidden" style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: 8px; border: 1px solid var(--info-text);">
+                    <div id="selectedCourierInfo" class="hidden"
+                        style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: 8px; border: 1px solid var(--info-text);">
                         Selecionado: <strong id="selectedCourierName">Nome</strong>
                     </div>
                     <div class="form-actions" style="margin-top: 1.5rem;">

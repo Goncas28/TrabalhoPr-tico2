@@ -818,3 +818,89 @@ textarea:focus {
 .btn-assign:hover {
     background: #059669 !important;
 }
+
+/* Route Planning Styles */
+.route-layout {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+@media (max-width: 900px) {
+    .route-layout {
+        flex-direction: column;
+    }
+}
+
+.route-map-container {
+    flex: 2;
+    min-height: 450px;
+    background: #e5e7eb;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+#routeMap {
+    width: 100%;
+    height: 100%;
+    min-height: 450px;
+}
+
+.route-sidebar {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.route-summary {
+    background: var(--input-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.route-summary h3 {
+    margin-bottom: 1rem;
+    color: var(--text-main);
+}
+
+.summary-details p {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+}
+
+.summary-details p span {
+    font-weight: 600;
+}
+
+.route-timeline {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.route-timeline .timeline-item {
+    margin-bottom: 1rem;
+}
+
+.route-timeline .timeline-content {
+    padding: 0.5rem 0.75rem;
+}
+
+.route-stop-ref {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.route-stop-addr {
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    color: var(--text-main);
+}
