@@ -7,6 +7,7 @@
     <title>Gestão de Clientes e Encomendas</title>
     <meta name="description" content="Gestão de clientes, endereços e encomendas.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -19,6 +20,8 @@
             <button class="tab-btn" data-target="tab-order">Nova Encomenda</button>
             <button class="tab-btn" data-target="tab-orders-list">Lista Encomendas</button>
             <button class="tab-btn" data-target="tab-couriers">Estafetas</button>
+            <button class="tab-btn" data-target="tab-routes">Rotas</button>
+            <button class="tab-btn" data-target="tab-fleet">Frota</button>
         </nav>
 
         <div class="main-content">
@@ -251,15 +254,11 @@
                                 <span class="error-msg">Contacto inválido.</span>
                             </div>
                             <div class="input-group half">
-                                <label for="cVeiculo">Veículo <span class="required">*</span></label>
+                                <label for="cVeiculo">Veículo da Frota <span class="required">*</span></label>
                                 <select id="cVeiculo" name="cVeiculo" required>
-                                    <option value="" disabled selected>Selecione...</option>
-                                    <option value="Bicicleta">Bicicleta</option>
-                                    <option value="Moto">Moto</option>
-                                    <option value="Carro">Carro</option>
-                                    <option value="Carrinha">Carrinha</option>
+                                    <option value="" disabled selected>A carregar veículos disponíveis...</option>
                                 </select>
-                                <span class="error-msg">Selecione um veículo.</span>
+                                <span class="error-msg">Selecione um veículo livre.</span>
                             </div>
                         </div>
 
@@ -298,6 +297,120 @@
 
                     <div id="couriersContainer" class="clients-grid">
                         <!-- Estafetas inseridos via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 6: Planeamento de Rotas -->
+            <div id="tab-routes" class="tab-content">
+                <div class="form-wrapper">
+                    <div class="header">
+                        <h1>Planeamento de Rotas</h1>
+                        <p>Agrupe encomendas pendentes por zona e planeie a melhor rota de entrega.</p>
+                    </div>
+
+                    <div class="filters-row" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: end;">
+                        <div class="input-group" style="flex: 1;">
+                            <label for="routeZoneSelect">Selecione a Zona Geográfica <span class="required">*</span></label>
+                            <select id="routeZoneSelect">
+                                <option value="" disabled selected>A carregar zonas...</option>
+                            </select>
+                        </div>
+                        <button id="btnGenerateRoute" class="submit-btn" style="flex: 0; white-space: nowrap;">Gerar Rota</button>
+                    </div>
+
+                    <div id="routeContent" class="hidden">
+                        <div class="route-layout">
+                            <div class="route-map-container">
+                                <div id="routeMap"></div>
+                            </div>
+                            <div class="route-sidebar">
+                                <div class="route-summary">
+                                    <h3>Sumário da Rota</h3>
+                                    <div class="summary-details">
+                                        <p><strong>Tempo Estimado:</strong> <span id="routeTimeEst">-</span></p>
+                                        <p><strong>Distância Aprox.:</strong> <span id="routeDistEst">-</span></p>
+                                        <p><strong>Encomendas:</strong> <span id="routeCountEst">-</span></p>
+                                    </div>
+                                    <div class="input-group" style="margin-top: 1rem;">
+                                        <label for="routeCourierSelect">Atribuir Estafeta</label>
+                                        <select id="routeCourierSelect">
+                                            <option value="" disabled selected>Selecione um estafeta...</option>
+                                        </select>
+                                    </div>
+                                    <button id="btnConfirmRoute" class="submit-btn" style="width: 100%; margin-top: 0.5rem;" disabled>Confirmar e Atribuir</button>
+                                </div>
+                                
+                                <h3>Ordem de Entrega</h3>
+                                <div id="routeStopsList" class="timeline route-timeline">
+                                    <!-- Paragens inseridas via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="noPendingOrdersMsg" class="no-data hidden">
+                        Não existem encomendas pendentes para a zona selecionada.
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 7: Gestão de Frota -->
+            <div id="tab-fleet" class="tab-content">
+                <div class="form-wrapper">
+                    <div class="header">
+                        <h1>Gestão de Frota</h1>
+                        <p>Registe matrículas, controle a capacidade e ative alertas de manutenção dos veículos.</p>
+                    </div>
+
+                    <!-- Formulário de Registo de Veículo -->
+                    <form id="vehicleForm" novalidate style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 2px dashed var(--border);">
+                        <div class="row">
+                            <div class="input-group half">
+                                <label for="vMatricula">Matrícula / ID <span class="required">*</span></label>
+                                <input type="text" id="vMatricula" name="vMatricula" placeholder="Ex: AA-11-BB ou BIC-01" required>
+                                <span class="error-msg">A matrícula/ID é obrigatória.</span>
+                            </div>
+                            <div class="input-group half">
+                                <label for="vTipo">Tipo de Veículo <span class="required">*</span></label>
+                                <select id="vTipo" name="vTipo" required>
+                                    <option value="" disabled selected>Selecione o tipo...</option>
+                                    <option value="Motorizada">Motorizada</option>
+                                    <option value="Carrinha">Carrinha</option>
+                                    <option value="Bicicleta">Bicicleta</option>
+                                </select>
+                                <span class="error-msg">Selecione o tipo.</span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="input-group half">
+                                <label for="vCapacidade">Capacidade de Carga (kg/un) <span class="required">*</span></label>
+                                <input type="number" id="vCapacidade" name="vCapacidade" min="1" placeholder="Ex: 50" required>
+                                <span class="error-msg">Mínimo 1 unidade.</span>
+                            </div>
+                            <div class="input-group half">
+                                <label for="vEstado">Estado Inicial <span class="required">*</span></label>
+                                <select id="vEstado" name="vEstado" required>
+                                    <option value="Disponível" selected>Disponível</option>
+                                    <option value="Em Manutenção">Em Manutenção</option>
+                                </select>
+                                <span class="error-msg">Selecione o estado.</span>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="submit-btn">
+                            Registar Veículo
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                        </button>
+                    </form>
+
+                    <div class="filters-row" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="color: var(--text-main);">Veículos Registados</h3>
+                    </div>
+                    
+                    <div id="fleetContainer" class="clients-grid">
+                        <!-- Veículos inseridos via JS -->
                     </div>
                 </div>
             </div>
@@ -460,6 +573,8 @@
         </div>
     </div>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="app.js"></script>
 </body>
 
