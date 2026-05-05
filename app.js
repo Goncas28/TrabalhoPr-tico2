@@ -109,8 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (currentUser && currentUser.role === 'Estafeta') {
                 orders = orders.filter(o => o.courierId === currentUser.refId);
-            } else if (currentUser && currentUser.role === 'Cliente') {
-                orders = orders.filter(o => o.clientId === currentUser.refId);
             }
 
             // Filtro por estado
@@ -535,25 +533,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Agora permitimos que todos os utilizadores vejam e escolham qualquer cliente
+        orderClient.disabled = false;
+        clients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.nome} (${c.nif})`;
+            orderClient.appendChild(opt);
+        });
+
+        // Se for Cliente, pré-selecionamos o seu próprio ID se disponível, mas permitimos alterar
         if (currentUser && currentUser.role === 'Cliente') {
             const myClient = clients.find(c => c.id === currentUser.refId);
             if (myClient) {
-                const opt = document.createElement('option');
-                opt.value = myClient.id;
-                opt.textContent = `${myClient.nome} (${myClient.nif})`;
-                orderClient.appendChild(opt);
                 orderClient.value = myClient.id;
-                orderClient.disabled = true; // Block change
-                orderClient.dispatchEvent(new Event('change')); // auto-load dests
+                orderClient.dispatchEvent(new Event('change'));
             }
-        } else {
-            orderClient.disabled = false;
-            clients.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = `${c.nome} (${c.nif})`;
-                orderClient.appendChild(opt);
-            });
         }
     }
 
