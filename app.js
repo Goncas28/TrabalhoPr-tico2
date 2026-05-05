@@ -1,4 +1,100 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ---- SISTEMA DE LOGIN E SESSÃO ----
+    const mockUsers = [
+        { email: 'admin@logistica.pt', password: 'admin', role: 'Gestor', nome: 'Administrador' },
+        { email: 'estafeta@logistica.pt', password: '1234', role: 'Estafeta', nome: 'João Silva', refId: 'EST-001' },
+        { email: 'cliente@logistica.pt', password: '1234', role: 'Cliente', nome: 'Empresa XPTO', refId: 'CLI-001' }
+    ];
+
+    const loginView = document.getElementById('login-view');
+    const dashboardView = document.getElementById('dashboard-view');
+    const loginForm = document.getElementById('loginForm');
+    const loginErrorMsg = document.getElementById('loginErrorMsg');
+    const btnLogout = document.getElementById('btnLogout');
+    const currentUserLabel = document.getElementById('currentUserLabel');
+
+    function checkSession() {
+        const session = sessionStorage.getItem('logigest_user');
+        if (session) {
+            const user = JSON.parse(session);
+            if(loginView) loginView.classList.add('hidden');
+            if(dashboardView) dashboardView.classList.remove('hidden');
+            if(currentUserLabel) currentUserLabel.textContent = `Olá, ${user.nome} (${user.role})`;
+            applyRolePermissions(user);
+        } else {
+            if(loginView) loginView.classList.remove('hidden');
+            if(dashboardView) dashboardView.classList.add('hidden');
+        }
+    }
+
+    if(loginForm) {
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            const pass = document.getElementById('loginPassword').value.trim();
+            
+            const user = mockUsers.find(u => u.email === email && u.password === pass);
+            if (user) {
+                sessionStorage.setItem('logigest_user', JSON.stringify(user));
+                loginErrorMsg.style.display = 'none';
+                loginForm.reset();
+                
+                // Mock: Criar o cliente e o estafeta se não existirem
+                if(user.role === 'Cliente') {
+                    const clients = getClients();
+                    if(!clients.find(c => c.id === user.refId)) {
+                        clients.push({
+                            id: user.refId, nome: user.nome, nif: '123456789', tipo: 'Empresa', contacto: '911222333', email: user.email, enderecos: [{ id: 'ADDR-CLI001', rua: 'Rua Principal 1', localidade: 'Lisboa', codigoPostal: '1000-001', isMain: true }]
+                        });
+                        saveClients(clients);
+                    }
+                }
+                
+                checkSession();
+            } else {
+                loginErrorMsg.style.display = 'block';
+            }
+        });
+    }
+
+    if(btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            sessionStorage.removeItem('logigest_user');
+            checkSession();
+        });
+    }
+
+    function applyRolePermissions(user) {
+        const tabs = document.querySelectorAll('.tab-btn');
+        tabs.forEach(t => t.classList.remove('hidden-role')); // reset
+
+        if (user.role === 'Estafeta') {
+            // Estafeta vê: Lista Encomendas, Rotas, Frota
+            tabs.forEach(t => {
+                const target = t.dataset.target;
+                const allowed = ['tab-orders-list', 'tab-routes', 'tab-fleet'];
+                if (!allowed.includes(target)) t.classList.add('hidden-role');
+            });
+            const firstTab = document.querySelector('.tab-btn[data-target="tab-orders-list"]');
+            if(firstTab) firstTab.click();
+        } else if (user.role === 'Cliente') {
+            // Cliente vê: Nova Encomenda, Lista Encomendas
+            tabs.forEach(t => {
+                const target = t.dataset.target;
+                const allowed = ['tab-order', 'tab-orders-list'];
+                if (!allowed.includes(target)) t.classList.add('hidden-role');
+            });
+            const firstTab = document.querySelector('.tab-btn[data-target="tab-order"]');
+            if(firstTab) firstTab.click();
+        } else {
+            // Gestor vê tudo
+            const firstTab = document.querySelector('.tab-btn[data-target="tab-register"]');
+            if(firstTab) firstTab.click();
+        }
+    }
+
+    checkSession();
+
         // ---- Filtros de Encomendas ----
         const filterEstado = document.getElementById('filterEstado');
         const filterDataInicio = document.getElementById('filterDataInicio');
@@ -8,6 +104,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function getFilteredOrders() {
             let orders = getOrders();
+            const session = sessionStorage.getItem('logigest_user');
+            const currentUser = session ? JSON.parse(session) : null;
+            
+            if (currentUser && currentUser.role === 'Estafeta') {
+                orders = orders.filter(o => o.courierId === currentUser.refId);
+            } else if (currentUser && currentUser.role === 'Cliente') {
+                orders = orders.filter(o => o.clientId === currentUser.refId);
+            }
+
             // Filtro por estado
             if (filterEstado && filterEstado.value) {
                 orders = orders.filter(o => o.estado === filterEstado.value);
@@ -102,6 +207,55 @@ document.addEventListener('DOMContentLoaded', () => {
         return JSON.parse(stored);
     }
     function saveVehicles(vehicles) { localStorage.setItem('vehicles', JSON.stringify(vehicles)); }
+
+    // ---- GESTÃO DE NOTIFICAÇÕES (SIMULAÇÃO) ----
+    function showToast(title, message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        const icon = type === 'success' ? '✓' : 'ℹ';
+        
+        toast.innerHTML = `
+            <div class="toast-icon">${icon}</div>
+            <div class="toast-content">
+                <h4>${title}</h4>
+                <p>${message}</p>
+            </div>
+        `;
+        
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            toast.addEventListener('animationend', () => toast.remove());
+        }, 4000);
+    }
+
+    function simulateNotification(order, tipo, mensagemTemplate) {
+        if (!order.notificacoes) order.notificacoes = [];
+        
+        const client = getClients().find(c => c.id === order.clientId);
+        const contactInfo = tipo === 'SMS' ? (client ? client.contacto : 'Desconhecido') : (client ? client.email : 'Desconhecido');
+        
+        const notificacao = {
+            id: 'NOT-' + Date.now() + Math.floor(Math.random()*100),
+            tipo: tipo,
+            destino: contactInfo,
+            mensagem: mensagemTemplate,
+            data: new Date().toISOString()
+        };
+        
+        order.notificacoes.push(notificacao);
+        
+        showToast(
+            `Simulação: ${tipo} Enviado`, 
+            `Para: ${contactInfo}<br>Sobre: Enc. ${order.id}`, 
+            'success'
+        );
+    }
 
     // ---- DOM Elements ----
     const tabBtns = document.querySelectorAll('.tab-btn');
@@ -369,6 +523,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Popular Dropdown de Clientes
     function populateOrderClientSelect() {
         const clients = getClients();
+        const session = sessionStorage.getItem('logigest_user');
+        const currentUser = session ? JSON.parse(session) : null;
+
         orderClient.innerHTML = '<option value="" disabled selected>Selecione um cliente...</option>';
         orderDest.innerHTML = '<option value="" disabled selected>Primeiro selecione um cliente...</option>';
         orderDest.disabled = true;
@@ -378,12 +535,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        clients.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            opt.textContent = `${c.nome} (${c.nif})`;
-            orderClient.appendChild(opt);
-        });
+        if (currentUser && currentUser.role === 'Cliente') {
+            const myClient = clients.find(c => c.id === currentUser.refId);
+            if (myClient) {
+                const opt = document.createElement('option');
+                opt.value = myClient.id;
+                opt.textContent = `${myClient.nome} (${myClient.nif})`;
+                orderClient.appendChild(opt);
+                orderClient.value = myClient.id;
+                orderClient.disabled = true; // Block change
+                orderClient.dispatchEvent(new Event('change')); // auto-load dests
+            }
+        } else {
+            orderClient.disabled = false;
+            clients.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `${c.nome} (${c.nif})`;
+                orderClient.appendChild(opt);
+            });
+        }
     }
 
     // Atualizar Destinos ao Selecionar Cliente
@@ -452,6 +623,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]
             };
 
+            // Simular notificação inicial
+            simulateNotification(orderData, 'Email', `A sua encomenda de ${orderData.produto} foi registada com sucesso. A aguardar processamento.`);
+            simulateNotification(orderData, 'SMS', `Encomenda ${orderRef} registada. Previsão: ${orderData.prazo}.`);
+
             const orders = getOrders();
             orders.push(orderData);
             saveOrders(orders);
@@ -490,14 +665,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'order-card';
             
-            // Botões de ação se estiver pendente
+            // Botões de ação
             let actionBtns = '';
-            if (order.estado === 'Pendente') {
-                actionBtns = `
-                    <button class="btn-manage btn-edit" data-id="${order.id}">Editar</button>
-                    <button class="btn-manage btn-cancel" data-id="${order.id}">Cancelar</button>
-                    <button class="btn-manage btn-assign" data-id="${order.id}">Atribuir Estafeta</button>
-                `;
+            const session = sessionStorage.getItem('logigest_user');
+            const currentUser = session ? JSON.parse(session) : null;
+
+            if (currentUser && currentUser.role === 'Estafeta') {
+                if (order.estado === 'Em distribuição') {
+                    actionBtns = `<button class="btn-manage btn-deliver" data-id="${order.id}" style="background:var(--success);color:white;border-color:var(--success);">Marcar Entregue</button>`;
+                }
+            } else if (!currentUser || currentUser.role === 'Gestor') {
+                if (order.estado === 'Pendente') {
+                    actionBtns = `
+                        <button class="btn-manage btn-edit" data-id="${order.id}">Editar</button>
+                        <button class="btn-manage btn-cancel" data-id="${order.id}">Cancelar</button>
+                        <button class="btn-manage btn-assign" data-id="${order.id}">Atribuir Estafeta</button>
+                    `;
+                }
             }
 
             card.innerHTML = `
@@ -513,6 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="order-actions" style="text-align:right;">
                     <p style="margin-bottom: 0.5rem;"><strong>Prazo:</strong> <br>${prazoDate}</p>
                     <button class="btn-manage btn-track" data-id="${order.id}">Rastrear</button>
+                    <button class="btn-manage btn-notif" data-id="${order.id}">Notificações</button>
                     ${actionBtns}
                 </div>
             `;
@@ -523,6 +708,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-track').forEach(btn => {
             btn.addEventListener('click', (e) => openTrackingModal(e.target.dataset.id));
         });
+        document.querySelectorAll('.btn-notif').forEach(btn => {
+            btn.addEventListener('click', (e) => window.openNotificationsModal(e.target.dataset.id));
+        });
         document.querySelectorAll('.btn-assign').forEach(btn => {
             btn.addEventListener('click', (e) => openAssignModal(e.target.dataset.id));
         });
@@ -531,6 +719,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         document.querySelectorAll('.btn-cancel').forEach(btn => {
             btn.addEventListener('click', (e) => openCancelModal(e.target.dataset.id));
+        });
+        document.querySelectorAll('.btn-deliver').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const oId = e.target.dataset.id;
+                if(confirm(`Confirmar entrega da encomenda ${oId}?`)) {
+                    const orders = getOrders();
+                    const idx = orders.findIndex(o => o.id === oId);
+                    if(idx > -1) {
+                        orders[idx].estado = 'Entregue';
+                        orders[idx].historicoEstado.push({ estado: 'Entregue', timestamp: new Date().toISOString() });
+                        if(typeof simulateNotification === 'function') {
+                            simulateNotification(orders[idx], 'Email', `A sua encomenda ${oId} foi entregue com sucesso! Obrigado.`);
+                            simulateNotification(orders[idx], 'SMS', `Encomenda ${oId} entregue.`);
+                        }
+                        saveOrders(orders);
+                        renderOrdersList();
+                    }
+                }
+            });
         });
     }
 
@@ -762,6 +969,8 @@ document.addEventListener('DOMContentLoaded', () => {
             motivo: `Atribuída ao estafeta ${courier.nome}`
         });
 
+        simulateNotification(orders[oIndex], 'SMS', `A sua encomenda ${orderId} está agora em distribuição com o estafeta ${courier.nome}.`);
+
         saveOrders(orders);
         assignModal.classList.add('hidden');
         renderOrdersList();
@@ -828,6 +1037,8 @@ document.addEventListener('DOMContentLoaded', () => {
             motivo: reason
         });
         
+        simulateNotification(orders[oIndex], 'Email', `Lamentamos, mas a sua encomenda ${orderId} foi cancelada. Motivo: ${reason}`);
+
         saveOrders(orders);
         cancelModal.classList.add('hidden');
         renderOrdersList();
@@ -1141,6 +1352,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
+            // Disparar notificações para as encomendas afetadas
+            currentRouteOrders.forEach(routeOrder => {
+                const updatedOrder = orders.find(o => o.id === routeOrder.id);
+                if(updatedOrder) {
+                    simulateNotification(updatedOrder, 'SMS', `A sua encomenda ${updatedOrder.id} está agora em distribuição.`);
+                }
+            });
+
             saveOrders(orders);
             
             alert(`Rota gerada com sucesso!\n${currentRouteOrders.length} encomendas atribuídas a ${courier.nome}.`);
@@ -1284,5 +1503,44 @@ document.addEventListener('DOMContentLoaded', () => {
             fleetContainer.appendChild(card);
         });
     }
+
+    // Modal Histórico de Notificações
+    const notificationsModal = document.getElementById('notificationsModal');
+    
+    window.openNotificationsModal = function(orderId) {
+        const order = getOrders().find(o => o.id === orderId);
+        if (!order) return;
+
+        document.getElementById('notifOrderRef').textContent = order.id;
+        const listContainer = document.getElementById('notificationsList');
+        
+        if (!order.notificacoes || order.notificacoes.length === 0) {
+            listContainer.innerHTML = '<div class="no-data">Nenhuma comunicação enviada para esta encomenda.</div>';
+        } else {
+            let html = '';
+            order.notificacoes.sort((a,b) => new Date(b.data) - new Date(a.data)).forEach(n => {
+                const dateStr = new Date(n.data).toLocaleString('pt-PT');
+                const badgeClass = n.tipo.toLowerCase();
+                html += `
+                    <div class="timeline-item">
+                        <div class="timeline-content" style="padding-bottom: 1.5rem;">
+                            <span class="time">${dateStr}</span>
+                            <div>
+                                <span class="notif-badge ${badgeClass}">${n.tipo}</span>
+                                <span style="font-size: 0.85rem; color: var(--text-muted);">Enviado para: ${n.destino}</span>
+                            </div>
+                            <p style="font-size:0.9rem; margin-top:0.5rem; background: var(--bg-alt); padding: 0.8rem; border-radius: 6px; border-left: 3px solid var(--border);">"${n.mensagem}"</p>
+                        </div>
+                    </div>
+                `;
+            });
+            listContainer.innerHTML = html;
+        }
+        
+        notificationsModal.classList.remove('hidden');
+    }
+
+    const closeNotifBtn = document.getElementById('closeNotificationsModalBtn');
+    if(closeNotifBtn) closeNotifBtn.onclick = () => notificationsModal.classList.add('hidden');
 
 });

@@ -12,8 +12,45 @@
 </head>
 
 <body>
-    <div class="container">
-        <!-- Navegação (Tabs) -->
+    <!-- Login View -->
+    <div id="login-view" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h2>LogiGest</h2>
+                <p>Plataforma de Gestão Logística</p>
+            </div>
+            <form id="loginForm" novalidate>
+                <div class="input-group">
+                    <label for="loginEmail">E-mail</label>
+                    <input type="email" id="loginEmail" required placeholder="Ex: admin@logistica.pt">
+                </div>
+                <div class="input-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" required placeholder="Sua password">
+                </div>
+                <div id="loginErrorMsg" class="error-msg" style="display:none; text-align:center; margin-bottom:1rem;">Credenciais inválidas.</div>
+                <button type="submit" class="submit-btn" style="width:100%;">Entrar</button>
+            </form>
+            <div style="margin-top: 1.5rem; font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+                <p><strong>Contas de Teste:</strong></p>
+                <p>Gestor: <em>admin@logistica.pt / admin</em></p>
+                <p>Estafeta: <em>estafeta@logistica.pt / 1234</em></p>
+                <p>Cliente: <em>cliente@logistica.pt / 1234</em></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="dashboard-view" class="hidden">
+        <div class="dashboard-topbar">
+            <div class="logo">LogiGest</div>
+            <div class="user-profile">
+                <span id="currentUserLabel">Olá, Utilizador</span>
+                <button id="btnLogout" class="secondary-btn" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">Sair</button>
+            </div>
+        </div>
+        <div class="container">
+            <!-- Navegação (Tabs) -->
         <nav class="tabs">
             <button class="tab-btn active" data-target="tab-register">Registar Cliente</button>
             <button class="tab-btn" data-target="tab-list">Clientes Registados</button>
@@ -573,6 +610,29 @@
         </div>
     </div>
 
+    <!-- Modal de Histórico de Notificações -->
+    <div id="notificationsModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Histórico de Comunicações</h2>
+                <button id="closeNotificationsModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="client-info-banner">
+                    Encomenda: <strong id="notifOrderRef">ENC-XXXX</strong>
+                </div>
+                <div id="notificationsList" class="timeline route-timeline" style="margin-top: 1.5rem;">
+                    <!-- Notificações inseridas via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    
+    </div> <!-- fecho do dashboard-view -->
+    
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="app.js"></script>
